@@ -99,6 +99,45 @@ still accepts `use_stop_loss_exit=True` / `use_take_profit_exit=True` if you wan
 re-run that comparison yourself, and the ATR levels are always computed and shown
 in alerts even though nothing acts on them automatically.
 
+### Trailing stop (tested, and still not enabled)
+
+`python backtest.py --trailing-stop` exits at a stop that sits
+`atr_trail_multiplier` ATRs (default 3) below the highest high reached since
+entry and ratchets up only, never down. This was built specifically to fix why
+the *fixed* stop failed — that one was set once at entry and sat there waiting
+to be clipped by an ordinary pullback. Run head-to-head against the baseline on
+the same 3-year window:
+
+| | Baseline | Trailing stop |
+|---|---|---|
+| Closed trades | 103 | 116 |
+| Pooled win rate | 41.7% | **47.4%** |
+| Avg return/trade | **5.6%** | 1.6% |
+
+It does exactly what a trailing stop is supposed to do, and that turns out not
+to be enough. Win rate improves by ~6 points, losing positions bleed less
+(MFPC -20.2% → -8.3%, AMOC -16.2% → -6.9%, ECAP -15.0% → -9.6%), and max
+drawdowns drop sharply (AMOC 29.4% → 15.9%, MFPC 20.2% → 8.3%). More trades
+end green and the ride is smoother.
+
+But per-trade return collapses by ~70%, because this strategy's returns come
+from a small number of very large winners, and a trailing stop truncates
+exactly those. RMDA is the whole story in one row: **+113.8% total return
+across 4 trades at a 75% win rate on the baseline, versus +3.4% across the same
+4 trades at a 25% win rate with the trail on.** Same number of trades, each one
+cut short at a worse price than the death cross would eventually have given.
+Once the trail ejects you, getting back in needs a *fresh* golden cross — which
+requires the fast SMA to fall back under the slow one first — so in a
+persistent uptrend you can sit out the rest of the move entirely.
+
+So it lands in the same place as the confluence filter and the fixed stop: a
+rule that sounds prudent, measurably reduces volatility, and costs more in
+forgone upside than it saves. **Live signals are unchanged** — the trailing
+stop is opt-in for backtesting only. If you want smoother equity and are
+willing to pay for it in return, the numbers above are the price. Worth
+re-checking with a wider multiplier (5-6 ATR) before writing the idea off
+completely; 3 ATR is the only setting tested so far.
+
 ### Checking for overfitting
 
 Everything above was validated by repeatedly backtesting the same 3-year window,
