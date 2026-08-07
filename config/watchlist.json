@@ -5,12 +5,24 @@
     { "symbol": "SWDY", "yahoo_symbol": "SWDY.CA", "name": "Elsewedy Electric", "held": false },
     { "symbol": "ORAS", "yahoo_symbol": "ORAS.CA", "name": "Orascom Construction", "held": false },
     { "symbol": "ORHD", "yahoo_symbol": "ORHD.CA", "name": "Orascom Development Egypt", "held": false },
-    { "symbol": "TMGH", "yahoo_symbol": "TMGH.CA", "name": "Talaat Moustafa Group Holding", "held": false },
-    { "symbol": "ETEL", "yahoo_symbol": "ETEL.CA", "name": "Telecom Egypt", "held": false },
+    { "symbol": "TMGH", "yahoo_symbol": "TMGH.CA", "name": "Talaat Moustafa Group Holding", "held": true },
+    { "symbol": "ETEL", "yahoo_symbol": "ETEL.CA", "name": "Telecom Egypt", "held": true },
     { "symbol": "EFID", "yahoo_symbol": "EFID.CA", "name": "Edita Food Industries", "held": false },
     { "symbol": "JUFO", "yahoo_symbol": "JUFO.CA", "name": "Juhayna Food Industries", "held": false },
-    { "symbol": "SKPC", "yahoo_symbol": "SKPC.CA", "name": "Sidi Kerir Petrochemicals", "held": false },
-    { "symbol": "ABUK", "yahoo_symbol": "ABUK.CA", "name": "Abu Qir Fertilizers", "held": false },
-    { "symbol": "CIRA", "yahoo_symbol": "CIRA.CA", "name": "CIRA Education", "held": false }
+    { "symbol": "SKPC", "yahoo_symbol": "SKPC.CA", "name": "Sidi Kerir Petrochemicals", "held": true },
+    { "symbol": "ABUK", "yahoo_symbol": "ABUK.CA", "name": "Abu Qir Fertilizers", "held": true },
+    { "symbol": "CIRA", "yahoo_symbol": "CIRA.CA", "name": "CIRA Education", "held": false },
+
+    { "symbol": "ISPH", "yahoo_symbol": "ISPH.CA", "name": "Ibnsina Pharma", "held": true },
+    { "symbol": "TALM", "yahoo_symbol": "TALM.CA", "name": "Taaleem Management Services", "held": true },
+    { "symbol": "AMOC", "yahoo_symbol": "AMOC.CA", "name": "Alexandria Mineral Oils Company", "held": true },
+    { "symbol": "MFPC", "yahoo_symbol": "MFPC.CA", "name": "Misr Fertilizers Production Co. (MOPCO)", "held": true },
+    { "symbol": "EGCH", "yahoo_symbol": "EGCH.CA", "name": "EGCH (verify company name)", "held": true },
+    { "symbol": "CLHO", "yahoo_symbol": "CLHO.CA", "name": "Cleopatra Hospitals Group", "held": true },
+    { "symbol": "ECAP", "yahoo_symbol": "ECAP.CA", "name": "ECAP (verify company name)", "held": true },
+    { "symbol": "MASR", "yahoo_symbol": "MASR.CA", "name": "Madinet Masr for Housing and Development", "held": true },
+    { "symbol": "GOUR", "yahoo_symbol": "GOUR.CA", "name": "GOUR (verify company name)", "held": true },
+    { "symbol": "RMDA", "yahoo_symbol": "RMDA.CA", "name": "RMDA (verify company name)", "held": true },
+    { "symbol": "BONY", "yahoo_symbol": "BONY.CA", "name": "BONY (verify company name)", "held": true }
   ]
 }
