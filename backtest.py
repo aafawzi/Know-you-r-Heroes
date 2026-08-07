@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pandas as pd
 
-from thndr_bot.backtest import backtest_ticker, pooled_stats, split_history
+from thndr_bot.backtest import backtest_ticker, hold_with_signal_exits, pooled_stats, split_history
 from thndr_bot.config import STRATEGY, load_watchlist
 from thndr_bot.data import fetch_history
 from thndr_bot.regime import regime_series
@@ -118,6 +118,69 @@ def sweep_trail_multipliers(period: str, multipliers: list[float], watch_symbol:
         _report(f"{mult:g} ATR trail", list(results.values()), results.get(watch_symbol))
 
 
+def compare_against_holding(period: str, held_only: bool = False) -> None:
+    """Does acting on these signals beat doing nothing?
+
+    Three columns per ticker: buy-and-hold, the entry-picking strategy, and
+    hold-with-signal-exits (already own it, only the SELLs are acted on).
+    Held positions are flagged because that's the population the answer
+    actually applies to.
+    """
+    watchlist = load_watchlist()
+    if held_only:
+        watchlist = [t for t in watchlist if t.get("held")]
+
+    rows = []
+    fetch_start = time.monotonic()
+    for ticker in watchlist:
+        symbol = ticker["symbol"]
+        df = fetch_history(ticker["yahoo_symbol"], period=period)
+        if df is None:
+            print(f"{symbol}: no data, skipping")
+            continue
+        result = backtest_ticker(df, symbol)
+        rows.append(
+            {
+                "symbol": symbol,
+                "held": ticker.get("held", False),
+                "buy_hold": result.buy_and_hold_return_pct,
+                "strategy": result.total_return_pct,
+                "hold_exits": hold_with_signal_exits(df),
+            }
+        )
+    print(f"Fetched and evaluated {len(rows)} tickers in {time.monotonic() - fetch_start:.1f}s\n")
+
+    header = (
+        f"{'Symbol':<8}{'Held':>6}{'BuyHold%':>11}{'Strategy%':>12}{'HoldWithExits%':>16}"
+        f"{'Exits vs Hold':>15}"
+    )
+    print(header)
+    print("-" * len(header))
+    for r in rows:
+        delta = r["hold_exits"] - r["buy_hold"]
+        print(
+            f"{r['symbol']:<8}{'Y' if r['held'] else '':>6}{_fmt(r['buy_hold']):>11}"
+            f"{_fmt(r['strategy']):>12}{_fmt(r['hold_exits']):>16}{delta:>+15.1f}"
+        )
+
+    def _summarise(label: str, subset: list[dict]) -> None:
+        if not subset:
+            return
+        strat_wins = sum(1 for r in subset if r["strategy"] is not None and r["strategy"] > r["buy_hold"])
+        exit_wins = sum(1 for r in subset if r["hold_exits"] > r["buy_hold"])
+        print(
+            f"\n{label} ({len(subset)} tickers)\n"
+            f"  Mean buy-and-hold        : {_fmt(_mean([r['buy_hold'] for r in subset]))}%\n"
+            f"  Mean strategy            : {_fmt(_mean([r['strategy'] for r in subset]))}%\n"
+            f"  Mean hold-with-exits     : {_fmt(_mean([r['hold_exits'] for r in subset]))}%\n"
+            f"  Strategy beat buy-hold   : {strat_wins}/{len(subset)}\n"
+            f"  Hold-with-exits beat B&H : {exit_wins}/{len(subset)}"
+        )
+
+    _summarise("ALL TICKERS", rows)
+    _summarise("YOUR HELD POSITIONS", [r for r in rows if r["held"]])
+
+
 def main(
     period: str = "3y",
     split_frac: float | None = None,
@@ -218,8 +281,15 @@ if __name__ == "__main__":
         help="Compare the baseline against several trailing-stop widths on one data pull, "
         "e.g. --trail-sweep 3 5 6 8 (defaults to 2 3 4 5 6 8)",
     )
+    parser.add_argument(
+        "--vs-hold",
+        action="store_true",
+        help="Compare buy-and-hold vs the strategy vs hold-with-signal-exits, per ticker and pooled",
+    )
     args = parser.parse_args()
-    if args.trail_sweep is not None:
+    if args.vs_hold:
+        compare_against_holding(args.period)
+    elif args.trail_sweep is not None:
         sweep_trail_multipliers(args.period, args.trail_sweep or [2, 3, 4, 5, 6, 8])
     else:
         main(

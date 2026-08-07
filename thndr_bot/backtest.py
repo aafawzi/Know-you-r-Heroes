@@ -107,6 +107,44 @@ def pooled_stats(results: list[BacktestResult]) -> dict:
     }
 
 
+def hold_with_signal_exits(df: pd.DataFrame, cfg: StrategyConfig | None = None) -> float:
+    """Total return % for someone who already owns the stock and uses the bot only to time exits.
+
+    Starts invested on the first tradeable bar, steps out on every SELL
+    crossover and back in on the next BUY. This is the comparison that
+    matters for a portfolio you already hold: backtest_ticker() answers
+    "is this a good way to pick entries", which is a question you have
+    already answered by owning the shares. This answers "does acting on
+    the SELL alerts beat ignoring them", and it is measured against the
+    same first/last closes as BacktestResult.buy_and_hold_return_pct so
+    the three numbers are directly comparable.
+    """
+    cfg = cfg or STRATEGY
+    min_bars = cfg.sma_slow + 2
+    if len(df) < min_bars:
+        return 0.0
+
+    equity = 1.0
+    invested = True
+    entry_price = float(df["Close"].iloc[min_bars - 1])
+
+    for i in range(min_bars - 1, len(df)):
+        price = float(df["Close"].iloc[i])
+        signal = compute_signal(df.iloc[: i + 1], cfg=cfg)
+        if signal is None:
+            continue
+        if signal.action == "SELL" and invested:
+            equity *= price / entry_price
+            invested = False
+        elif signal.action == "BUY" and not invested:
+            entry_price = price
+            invested = True
+
+    if invested:
+        equity *= float(df["Close"].iloc[-1]) / entry_price
+    return (equity - 1) * 100
+
+
 def backtest_ticker(
     df: pd.DataFrame,
     symbol: str,

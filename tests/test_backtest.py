@@ -1,7 +1,12 @@
 import pandas as pd
 import pytest
 
-from thndr_bot.backtest import backtest_ticker, pooled_stats, split_history
+from thndr_bot.backtest import (
+    backtest_ticker,
+    hold_with_signal_exits,
+    pooled_stats,
+    split_history,
+)
 from thndr_bot.config import StrategyConfig
 
 _CFG = StrategyConfig(sma_fast=2, sma_slow=3, rsi_period=3, rsi_overbought=101, rsi_oversold=-1)
@@ -213,6 +218,60 @@ def test_regime_filter_allows_buy_when_regime_unknown():
 
     assert len(result.closed_trades) == 1
     assert result.closed_trades[0].entry_price == 20
+
+
+def test_hold_with_exits_matches_buy_and_hold_when_no_signals_fire():
+    # Flat prices produce no crossovers, so never stepping out must equal
+    # simply holding - here, zero return.
+    df = pd.DataFrame({"Close": [10.0] * 12})
+
+    assert hold_with_signal_exits(df, cfg=_CFG) == pytest.approx(0.0)
+
+
+def _buy_and_hold(closes: list[float]) -> float:
+    """Buy-and-hold measured from the same first tradeable bar (index 4 for _CFG)."""
+    return (closes[-1] - closes[4]) / closes[4] * 100
+
+
+def test_hold_with_exits_beats_holding_through_a_gradual_decline():
+    # The one shape where acting on SELL alerts pays: a slow bleed. The death
+    # cross fires early in the decline and the holder steps out at 18 instead
+    # of riding all the way to 6.
+    closes = [10, 10, 10, 10, 10, 20, 20, 18, 16, 14, 12, 10, 8, 6]
+    df = pd.DataFrame({"Close": closes})
+
+    result = hold_with_signal_exits(df, cfg=_CFG)
+
+    assert _buy_and_hold(closes) == pytest.approx(-40.0)
+    assert result == pytest.approx(80.0)
+    assert result > _buy_and_hold(closes)
+
+
+def test_hold_with_exits_loses_badly_to_holding_when_whipsawed():
+    # The shape that punishes signal-following: a V. The death cross sells the
+    # bottom (5) and the golden cross buys back higher (20), so the holder
+    # books the entire crash and only part of the recovery - turning a +200%
+    # hold into a -25% loss. Selling on every alert is not free.
+    closes = [10, 10, 10, 10, 10, 5, 5, 5, 20, 30, 30]
+    df = pd.DataFrame({"Close": closes})
+
+    result = hold_with_signal_exits(df, cfg=_CFG)
+
+    assert _buy_and_hold(closes) == pytest.approx(200.0)
+    assert result == pytest.approx(-25.0)
+    assert result < _buy_and_hold(closes)
+
+
+def test_hold_with_exits_cannot_help_when_the_drop_takes_one_bar():
+    # A crossover is a lagging signal: a single-bar collapse triggers the SELL
+    # only at the already-collapsed price, so exiting changes nothing.
+    closes = [10, 10, 10, 10, 10, 20, 20, 5, 5, 5]
+    df = pd.DataFrame({"Close": closes})
+
+    result = hold_with_signal_exits(df, cfg=_CFG)
+
+    assert result == pytest.approx(_buy_and_hold(closes))
+    assert result == pytest.approx(-50.0)
 
 
 def test_split_history_divides_by_fraction():
