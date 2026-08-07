@@ -1,4 +1,5 @@
 import argparse
+from dataclasses import replace
 
 import pandas as pd
 
@@ -60,6 +61,58 @@ def _aligned_regime(full_regime: pd.Series | None, df: pd.DataFrame) -> pd.Serie
     if full_regime is None:
         return None
     return full_regime.reindex(df.index, method="ffill")
+
+
+def _mean(values: list[float]) -> float | None:
+    usable = [v for v in values if v is not None]
+    return sum(usable) / len(usable) if usable else None
+
+
+def sweep_trail_multipliers(period: str, multipliers: list[float], watch_symbol: str = "RMDA") -> None:
+    """Compare the baseline against several trailing-stop widths on one data pull.
+
+    Fetching once and reusing the frames keeps the comparison honest (every
+    row sees identical bars) and avoids hammering Yahoo with a fetch per
+    setting. `watch_symbol` is tracked separately because pooled averages hide
+    what a trailing stop actually does to the handful of big winners that carry
+    this strategy - that's the number the 3-ATR run got wrong.
+    """
+    watchlist = load_watchlist()
+    frames: dict[str, pd.DataFrame] = {}
+    for ticker in watchlist:
+        df = fetch_history(ticker["yahoo_symbol"], period=period)
+        if df is None:
+            print(f"{ticker['symbol']}: no data, skipping")
+            continue
+        frames[ticker["symbol"]] = df
+
+    print(f"\nTrailing-stop sweep over {len(frames)} tickers ({period})")
+    header = (
+        f"{'Setting':<22}{'Trades':>7}{'WinRate%':>10}{'AvgRet%':>10}"
+        f"{'MeanTotalRet%':>15}{'MeanMaxDD%':>12}{watch_symbol + ' Total%':>14}"
+    )
+    print(header)
+    print("-" * len(header))
+
+    def _report(label: str, results: list, watch_result) -> None:
+        stats = pooled_stats(results)
+        print(
+            f"{label:<22}{stats['trades']:>7}{_fmt(stats['win_rate']):>10}{_fmt(stats['avg_return']):>10}"
+            f"{_fmt(_mean([r.total_return_pct for r in results])):>15}"
+            f"{_fmt(_mean([r.max_drawdown_pct for r in results])):>12}"
+            f"{_fmt(watch_result.total_return_pct if watch_result else None):>14}"
+        )
+
+    baseline = {sym: backtest_ticker(df, sym) for sym, df in frames.items()}
+    _report("baseline (no trail)", list(baseline.values()), baseline.get(watch_symbol))
+
+    for mult in multipliers:
+        cfg = replace(STRATEGY, atr_trail_multiplier=mult)
+        results = {
+            sym: backtest_ticker(df, sym, cfg=cfg, use_trailing_stop_exit=True)
+            for sym, df in frames.items()
+        }
+        _report(f"{mult:g} ATR trail", list(results.values()), results.get(watch_symbol))
 
 
 def main(
@@ -154,10 +207,21 @@ if __name__ == "__main__":
         action="store_true",
         help="Exit at an ATR trailing stop that ratchets up behind the highest high since entry",
     )
-    args = parser.parse_args()
-    main(
-        period=args.period,
-        split_frac=args.split,
-        use_regime_filter=args.regime_filter,
-        use_trailing_stop=args.trailing_stop,
+    parser.add_argument(
+        "--trail-sweep",
+        nargs="*",
+        type=float,
+        metavar="MULT",
+        help="Compare the baseline against several trailing-stop widths on one data pull, "
+        "e.g. --trail-sweep 3 5 6 8 (defaults to 2 3 4 5 6 8)",
     )
+    args = parser.parse_args()
+    if args.trail_sweep is not None:
+        sweep_trail_multipliers(args.period, args.trail_sweep or [2, 3, 4, 5, 6, 8])
+    else:
+        main(
+            period=args.period,
+            split_frac=args.split,
+            use_regime_filter=args.regime_filter,
+            use_trailing_stop=args.trailing_stop,
+        )
