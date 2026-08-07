@@ -17,6 +17,14 @@ account or credentials.
 **Not financial advice.** This is a basic technical-indicator bot for personal use.
 Verify signals yourself before acting on them.
 
+> ### ⚠️ Read this before acting on a SELL alert
+>
+> Measured against the last 3 years of real EGX data, mechanically following
+> these signals **would have cost you money versus doing nothing** on 12 of the
+> 13 positions you hold. Treat the alerts as a prompt to go look at a position,
+> not as an instruction to trade it. Full numbers in
+> [Does acting on the signals beat doing nothing?](#does-acting-on-the-signals-beat-doing-nothing)
+
 ## How it works
 
 1. For each ticker in `config/watchlist.json`, fetch daily OHLC price history from
@@ -64,6 +72,66 @@ Verify signals yourself before acting on them.
 
 These parameters live in `thndr_bot/config.py` (`StrategyConfig`) if you want to
 tune them.
+
+## Does acting on the signals beat doing nothing?
+
+This is the question that matters most, and it went unasked for a long time
+while exit rules got tuned. `python backtest.py --vs-hold` answers it directly.
+Because you already own these shares, "are these good entries?" is moot — the
+live question is whether acting on a **SELL** alert beats sitting still. So it
+reports three numbers per ticker over the same bars: buy-and-hold, the
+entry-picking strategy, and *hold-with-signal-exits* (start invested, step out
+on every SELL, step back in on the next BUY).
+
+Over 3 years, on the 13 held positions with data:
+
+| | Mean return | Beat buy-and-hold |
+|---|---|---|
+| Buy and hold | **206.2%** | — |
+| Hold, exit on SELL alerts | 91.2% | **1 / 13** |
+| Strategy (entries too) | 29.1% | 2 / 13 |
+
+Per position, acting on the alerts versus doing nothing:
+
+| Ticker | Buy & hold | Hold + signal exits | Cost of acting |
+|---|---|---|---|
+| ISPH | 612.2% | 172.9% | **−439.2** |
+| CLHO | 331.1% | 69.2% | −261.9 |
+| TMGH | 547.2% | 303.0% | −244.3 |
+| MASR | 202.3% | 50.5% | −151.8 |
+| TALM | 359.6% | 211.9% | −147.7 |
+| RMDA | 337.8% | 269.8% | −68.0 |
+| ETEL | 283.0% | 214.8% | −68.2 |
+| ECAP | 92.0% | 26.7% | −65.3 |
+| ABUK | 21.0% | −33.5% | −54.5 |
+| AMOC | 20.9% | −6.8% | −27.7 |
+| EGCH | 6.2% | −15.2% | −21.4 |
+| SKPC | −39.7% | −43.3% | −3.6 |
+| **MFPC** | **−92.6%** | **−34.5%** | **+58.1** |
+
+One position out of thirteen. And look at *which* one: MFPC, the only holding
+that genuinely collapsed. That's the honest shape of what this bot does — it
+is not an edge, it's disaster insurance, and the premium is steep. You pay it
+on every position that merely wobbles and keeps climbing.
+
+Caveats that cut in the bot's favour, stated plainly:
+
+- **This window is a huge EGX bull market** (mean buy-and-hold +206%). *Any*
+  rule that steps out of the market looks terrible against that, and this
+  result would look very different across a sustained bear market. It is
+  evidence about this regime, not a universal verdict.
+- The means are dragged around by outliers like ISPH; the 1-of-13 count is the
+  robust number, and it doesn't depend on them.
+- `hold_with_signal_exits()` starts invested on the first tradeable bar of the
+  window, not at your actual entry dates or cost basis, so it measures
+  "hold vs. time the exits over these 3 years" rather than replaying your
+  account.
+
+**What to do with that:** don't sell just because the bot says SELL. Use the
+alert as a reason to open the chart and check whether something real is
+happening — a genuine deterioration like MFPC, or ordinary noise in an uptrend
+like ISPH. The bot is good at noticing that *something changed*; it is
+demonstrably bad at telling you what to do about it.
 
 ## Backtesting — know what you're getting into first
 
