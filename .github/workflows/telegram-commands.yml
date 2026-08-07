@@ -1,0 +1,41 @@
+name: Telegram Portfolio Commands
+
+on:
+  schedule:
+    # Poll every 15 minutes for /update, /sell, /portfolio commands sent to
+    # the bot in Telegram.
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  poll-commands:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Poll Telegram for portfolio commands
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python poll_commands.py
+
+      - name: Commit and push if the watchlist changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add config/watchlist.json config/.telegram_offset.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update portfolio via Telegram command"
+            git pull --rebase origin ${{ github.ref_name }}
+            git push origin HEAD:${{ github.ref_name }}
+          fi

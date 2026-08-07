@@ -151,6 +151,29 @@ shares` — instead of just the bare price, and the portfolio summary totals P&L
 across all positions that have both fields set. Both are optional and default to
 `null`; the bot works fine without them, you just get price-only lines and no total.
 
+### Keeping cost basis/quantity current after you buy or sell
+
+The bot has no read access to your Thndr account, so nothing here updates
+automatically when you trade — you tell it, either by editing
+`config/watchlist.json` directly, or by messaging the bot in Telegram:
+
+- `/update SYMBOL COST QTY` — set average cost and share count after any buy or
+  sell (Thndr always shows both together as your new blended position, so send
+  both every time). Also marks the ticker `held: true`. e.g. `/update TALM 21.50 60`.
+- `/sell SYMBOL` — mark a position fully closed (clears cost basis/quantity,
+  sets `held: false`).
+- `/portfolio` — show current held positions and their stored cost basis/quantity.
+- `/help` — list these commands.
+
+A separate scheduled workflow (`.github/workflows/telegram-commands.yml`) polls
+Telegram for new messages every 15 minutes, so a command doesn't take effect
+instantly — expect up to a ~15-minute delay before the watchlist updates and
+the next portfolio summary reflects it. Only messages from the `TELEGRAM_CHAT_ID`
+configured in secrets are honored; anyone else who messages the bot is ignored,
+since a command here can rewrite `config/watchlist.json`. Adding a brand-new
+ticker isn't supported via chat (it needs a Yahoo symbol and company name) —
+edit the JSON file directly for that, or ask for it to be added.
+
 ## Setup
 
 ### 1. Install dependencies
@@ -203,16 +226,19 @@ pytest
 
 `.github/workflows/egx-signal-bot.yml` runs the bot automatically on a cron schedule
 (default: ~15:30 Cairo time, Sunday–Thursday, after the EGX close) and can also be
-triggered manually from the Actions tab ("Run workflow"). A separate
-`.github/workflows/backtest.yml` workflow runs `backtest.py` on demand (accepts a
-`period` input, e.g. `1y`/`3y`/`5y`) for when you want fresh numbers without pulling
-the repo locally.
+triggered manually from the Actions tab ("Run workflow"). `.github/workflows/backtest.yml`
+runs `backtest.py` on demand (accepts a `period` input, e.g. `1y`/`3y`/`5y`) for when
+you want fresh numbers without pulling the repo locally. `.github/workflows/telegram-commands.yml`
+polls Telegram every 15 minutes for `/update`/`/sell`/`/portfolio` commands (see
+"Keeping cost basis/quantity current" above) and commits any changes back to
+`config/watchlist.json` — it needs `permissions: contents: write`, already set in
+the workflow file, to push those commits.
 
 To enable the scheduled bot:
 
 1. In your GitHub repo, go to **Settings → Secrets and variables → Actions**.
 2. Add repository secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
-3. Push this repo to GitHub — the workflow runs on the schedule automatically.
+3. Push this repo to GitHub — the workflows run on their schedules automatically.
 
 Adjust the cron expression if Egypt's UTC offset changes (DST) or you want a
 different check-in time.
@@ -228,6 +254,7 @@ different check-in time.
 ```
 run.py                          entry point for the live signal bot
 backtest.py                     entry point for the backtest report
+poll_commands.py                entry point for polling Telegram portfolio commands
 thndr_bot/
   config.py                     env vars, strategy parameters, watchlist loader
   data.py                       Yahoo Finance price fetching
@@ -237,9 +264,12 @@ thndr_bot/
   backtest.py                   walk-forward trade simulator + performance metrics,
                                  walk-forward split, and regime-filter comparison
   notifier.py                   Telegram sending
+  commands.py                   Telegram /update, /sell, /portfolio command handling
   runner.py                     orchestrates fetch -> signal -> notify for the watchlist
 config/watchlist.json           tickers to track (edit this to change coverage)
-tests/                          unit tests for signal logic and the backtest simulator
-.github/workflows/egx-signal-bot.yml   scheduled live run via GitHub Actions
-.github/workflows/backtest.yml         on-demand backtest run via GitHub Actions
+config/.telegram_offset.json    last processed Telegram update_id (auto-managed, do not edit)
+tests/                          unit tests for signal logic, backtest simulator, and commands
+.github/workflows/egx-signal-bot.yml      scheduled live run via GitHub Actions
+.github/workflows/backtest.yml            on-demand backtest run via GitHub Actions
+.github/workflows/telegram-commands.yml   polls for /update, /sell, /portfolio commands
 ```
