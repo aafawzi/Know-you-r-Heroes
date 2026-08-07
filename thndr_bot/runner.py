@@ -14,10 +14,7 @@ logger = logging.getLogger(__name__)
 
 def _format_alert_line(symbol: str, name: str, held: bool, signal) -> str:
     held_tag = " — you hold this" if held else ""
-    line = (
-        f"*{signal.action}* {symbol} ({name}) @ {signal.price:.2f} | "
-        f"RSI={signal.rsi:.1f} | confluence {signal.confluence}/{signal.confluence_required}{held_tag}"
-    )
+    line = f"*{signal.action}* {symbol} ({name}) @ {signal.price:.2f} | RSI={signal.rsi:.1f}{held_tag}"
 
     if signal.action == "BUY" and signal.stop_loss is not None and signal.take_profit is not None:
         risk_per_share = signal.price - signal.stop_loss
@@ -53,7 +50,7 @@ def run() -> None:
             continue
 
         logger.info(
-            "%s (%s)%s: %s | price=%.2f SMA%d=%.2f SMA%d=%.2f RSI%d=%.1f MACD=%.3f/%.3f confluence=%d/%d",
+            "%s (%s)%s: %s | price=%.2f SMA%d=%.2f SMA%d=%.2f RSI%d=%.1f",
             symbol,
             name,
             " [held]" if held else "",
@@ -65,10 +62,6 @@ def run() -> None:
             signal.sma_slow,
             STRATEGY.rsi_period,
             signal.rsi,
-            signal.macd,
-            signal.macd_signal,
-            signal.confluence,
-            signal.confluence_required,
         )
 
         if signal.action in ("BUY", "SELL"):

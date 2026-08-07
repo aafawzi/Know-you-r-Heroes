@@ -22,19 +22,11 @@ class StrategyConfig:
     rsi_oversold: float = 30.0
     history_period: str = "1y"
 
-    # Confluence filters layered on top of the SMA crossover to cut down on
-    # whipsaws: a crossover only fires a signal once at least
-    # `confluence_required` of {RSI, MACD, volume, Bollinger position} agree.
-    macd_fast: int = 12
-    macd_slow: int = 26
-    macd_signal_period: int = 9
-    bb_period: int = 20
-    bb_std: float = 2.0
-    volume_avg_period: int = 20
-    volume_confirm_multiplier: float = 1.2
-    confluence_required: int = 2
-
-    # ATR-based risk management shown alongside BUY alerts.
+    # ATR-based risk-management levels shown alongside BUY alerts as a
+    # reference only - backtesting showed forcing exits at these levels
+    # (via confluence filters, forced stop-loss, or forced take-profit)
+    # consistently underperformed the plain crossover strategy on 3 years of
+    # EGX data, so nothing here gates or auto-exits a signal.
     atr_period: int = 14
     atr_stop_multiplier: float = 2.0
     atr_reward_multiplier: float = 3.0

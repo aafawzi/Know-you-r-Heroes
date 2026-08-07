@@ -21,31 +21,23 @@ Verify signals yourself before acting on them.
 
 1. For each ticker in `config/watchlist.json`, fetch daily OHLC price history from
    Yahoo Finance (EGX tickers use the `.CA` suffix, e.g. `COMI.CA`).
-2. Compute a 20-day/50-day SMA crossover, 14-day RSI, MACD(12,26,9), Bollinger
-   Bands(20, 2σ), and volume vs its 20-day average.
-3. Signal logic — a crossover alone is *not* enough to fire:
-   - A **golden cross** (20-day SMA crosses above 50-day) is a candidate BUY.
-   - A **death cross** (20-day SMA crosses below 50-day) is a candidate SELL.
-   - The candidate only fires if at least `confluence_required` (default 2) of these
-     four also agree: RSI not overbought/oversold, MACD aligned with the direction,
-     volume above its 20-day average, price positioned on the right side of the
-     Bollinger mid-band. This exists to cut down whipsaws — see the backtest section
-     below for what this tradeoff actually looks like on real data.
+2. Compute a 20-day and 50-day SMA (simple moving average) and a 14-day RSI.
+3. Signal logic:
+   - **BUY** when the 20-day SMA crosses above the 50-day SMA ("golden cross") and
+     RSI is below 70 (not already overbought).
+   - **SELL** when the 20-day SMA crosses below the 50-day SMA ("death cross") and
+     RSI is above 30 (not already oversold).
    - Otherwise: **HOLD** (no alert sent).
-4. A BUY signal also computes an ATR(14)-based stop-loss (entry − 2×ATR), included
-   in the alert along with a position-sizing formula (risk ≤1% of portfolio per
-   trade — you supply your own portfolio value). A take-profit level (entry +
-   3×ATR) is shown too, but as a **reference only** — backtesting showed that
-   forcing an exit there caps exactly the large trend moves this strategy depends
-   on to be worthwhile, so positions are meant to ride to the next SELL crossover
-   instead. `backtest_ticker(..., use_take_profit_exit=True)` restores the old
-   forced-exit behavior if you want to compare.
+4. A BUY signal also computes an ATR(14)-based stop-loss (entry − 2×ATR) and
+   take-profit (entry + 3×ATR), shown in the alert as **reference only** along with
+   a position-sizing formula (risk ≤1% of portfolio per trade — you supply your own
+   portfolio value). Nothing in the bot forces an exit at these levels; that's a
+   deliberate, backtest-informed choice — see below.
 5. Any BUY/SELL signals are sent to you as a single Telegram message, held positions
    first.
 
-These parameters (SMA windows, RSI/MACD/Bollinger/volume settings, confluence
-threshold, ATR multipliers, risk-per-trade %) all live in `thndr_bot/config.py`
-(`StrategyConfig`) if you want to tune them.
+These parameters live in `thndr_bot/config.py` (`StrategyConfig`) if you want to
+tune them.
 
 ## Backtesting — know what you're getting into first
 
@@ -53,17 +45,33 @@ Before trusting any of this, run the backtest: `python backtest.py --period 3y` 
 trigger the **Backtest** workflow from the Actions tab, since Yahoo Finance isn't
 reachable from every environment). It walks the strategy forward bar-by-bar (no
 lookahead) against real historical data and reports win rate, average/total return,
-max drawdown, and a buy-and-hold comparison per ticker, plus a breakdown of how each
-closed trade exited (stop-loss / take-profit / signal).
+max drawdown, and a buy-and-hold comparison per ticker.
 
-The honest finding from the last full run: **EGX has been in a strong multi-year
-uptrend, and simple buy-and-hold beat this strategy on most tickers, often by a
-lot.** Trend-following signal strategies structurally give up some upside in
-strongly trending markets in exchange for cutting losses when a name actually
-reverses (see `MFPC` in a backtest run — buy-and-hold lost ~93%, the strategy only
-lost ~20%). Whether that tradeoff is worth it for a given ticker is genuinely mixed,
-not a clean win — look at the actual backtest output before assuming the bot's
-signals are reliable.
+This is deliberately the *plain* version of the strategy after a round of testing
+more sophisticated variants — worth knowing before you assume more complexity means
+more accuracy:
+
+- **A multi-indicator confluence filter** (requiring RSI + MACD + volume + Bollinger
+  Band position to agree before firing) cut down whipsaws on a few names but also
+  traded away some of the largest winners (one ticker's 3-year return went from
+  +110% to -11% once confirmation caught up too late).
+- **Forcing exits at the ATR stop-loss/take-profit** helped tickers that were
+  losing money, but capped the strategy's best trend-following winners even harder
+  (multiple tickers' 3-year returns dropped by 100+ percentage points) — a fixed,
+  non-trailing stop held for a long time just waits to get clipped by an ordinary
+  pullback in an otherwise-healthy uptrend.
+- The plain crossover-in / crossover-out baseline outperformed both of those
+  variants overall on this specific 3-year EGX sample, precisely because it lets
+  losses cut naturally at the next death cross and winners run all the way to
+  their own reversal, instead of an added rule doing it prematurely.
+
+None of this means the baseline is *good* in an absolute sense — see the general
+caveats above (small trade counts, no fundamentals/news awareness, EGX's multi-year
+uptrend meaning even buy-and-hold often beat every variant tested). It's the
+best-supported option among what's been tried here, not a guarantee. `backtest_ticker()`
+still accepts `use_stop_loss_exit=True` / `use_take_profit_exit=True` if you want to
+re-run that comparison yourself, and the ATR levels are always computed and shown
+in alerts even though nothing acts on them automatically.
 
 ## About the watchlist — read before using
 
@@ -167,8 +175,8 @@ backtest.py                     entry point for the backtest report
 thndr_bot/
   config.py                     env vars, strategy parameters, watchlist loader
   data.py                       Yahoo Finance price fetching
-  strategy.py                   SMA-crossover + confluence (RSI/MACD/BB/volume) +
-                                 ATR stop-loss/take-profit signal logic
+  strategy.py                   SMA-crossover + RSI signal logic, plus reference-only
+                                 ATR stop-loss/take-profit levels
   backtest.py                   walk-forward trade simulator + performance metrics
   notifier.py                   Telegram sending
   runner.py                     orchestrates fetch -> signal -> notify for the watchlist

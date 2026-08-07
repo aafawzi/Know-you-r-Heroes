@@ -81,21 +81,23 @@ def backtest_ticker(
     df: pd.DataFrame,
     symbol: str,
     cfg: StrategyConfig | None = None,
+    use_stop_loss_exit: bool = False,
     use_take_profit_exit: bool = False,
 ) -> BacktestResult:
     """Walk the strategy forward bar-by-bar (no lookahead) and simulate long-only trades.
 
-    Once in a position, each subsequent bar's Low is checked against the ATR
-    stop-loss captured at entry before evaluating a new signal - a stop hit
-    closes the trade even without a SELL crossover. The take-profit level is
-    informational only by default (use_take_profit_exit=False): backtesting
-    showed a fixed take-profit caps exactly the large trend moves this
-    strategy depends on to be worthwhile, so positions ride to the next SELL
-    crossover instead. Pass use_take_profit_exit=True to restore the old
-    behavior for comparison.
+    By default this is the plain baseline: a position opened on a BUY only
+    closes on the next SELL crossover. Backtesting showed that forcing exits
+    at a fixed ATR stop-loss and/or take-profit consistently gave up more
+    upside than it protected on 3 years of EGX data - a static stop doesn't
+    move up as a position becomes profitable, so a long-held winner in a
+    healthy uptrend gets stopped out on an ordinary pullback. Pass
+    use_stop_loss_exit=True and/or use_take_profit_exit=True to restore that
+    behavior for comparison; the ATR levels are still computed either way and
+    available on the Trade/Signal for reference.
     """
     cfg = cfg or STRATEGY
-    min_bars = max(cfg.sma_slow, cfg.macd_slow + cfg.macd_signal_period, cfg.bb_period, cfg.volume_avg_period) + 2
+    min_bars = cfg.sma_slow + 2
     has_hl = "High" in df.columns and "Low" in df.columns
 
     trades: list[Trade] = []
@@ -110,7 +112,7 @@ def backtest_ticker(
         if open_trade is not None and has_hl:
             low = float(df["Low"].iloc[i])
             high = float(df["High"].iloc[i])
-            if open_stop is not None and low <= open_stop:
+            if use_stop_loss_exit and open_stop is not None and low <= open_stop:
                 open_trade.exit_date = date
                 open_trade.exit_price = open_stop
                 open_trade.exit_reason = "stop_loss"
