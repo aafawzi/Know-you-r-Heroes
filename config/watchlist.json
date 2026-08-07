@@ -7,11 +7,11 @@
     { "symbol": "ORAS", "yahoo_symbol": "ORAS.CA", "name": "Orascom Construction", "held": false, "cost_basis": null, "quantity": null },
     { "symbol": "ORHD", "yahoo_symbol": "ORHD.CA", "name": "Orascom Development Egypt", "held": false, "cost_basis": null, "quantity": null },
     { "symbol": "TMGH", "yahoo_symbol": "TMGH.CA", "name": "Talaat Moustafa Group Holding", "held": true, "cost_basis": 95.42, "quantity": 10 },
-    { "symbol": "ETEL", "yahoo_symbol": "ETEL.CA", "name": "Telecom Egypt", "held": true, "cost_basis": null, "quantity": null },
+    { "symbol": "ETEL", "yahoo_symbol": "ETEL.CA", "name": "Telecom Egypt", "held": true, "cost_basis": 94.21, "quantity": 10 },
     { "symbol": "EFID", "yahoo_symbol": "EFID.CA", "name": "Edita Food Industries", "held": false, "cost_basis": null, "quantity": null },
     { "symbol": "JUFO", "yahoo_symbol": "JUFO.CA", "name": "Juhayna Food Industries", "held": false, "cost_basis": null, "quantity": null },
     { "symbol": "SKPC", "yahoo_symbol": "SKPC.CA", "name": "Sidi Kerir Petrochemicals", "held": true, "cost_basis": 25.06, "quantity": 118 },
-    { "symbol": "ABUK", "yahoo_symbol": "ABUK.CA", "name": "Abu Qir Fertilizers", "held": true, "cost_basis": null, "quantity": null },
+    { "symbol": "ABUK", "yahoo_symbol": "ABUK.CA", "name": "Abu Qir Fertilizers and Chemicals", "held": true, "cost_basis": 66.87, "quantity": 20 },
     { "symbol": "CIRA", "yahoo_symbol": "CIRA.CA", "name": "CIRA Education", "held": false, "cost_basis": null, "quantity": null },
 
     { "symbol": "ISPH", "yahoo_symbol": "ISPH.CA", "name": "Ibnsina Pharma", "held": true, "cost_basis": 14.17, "quantity": 106 },
@@ -22,8 +22,8 @@
     { "symbol": "CLHO", "yahoo_symbol": "CLHO.CA", "name": "Cleopatra Hospitals Group", "held": true, "cost_basis": 16.57, "quantity": 61 },
     { "symbol": "ECAP", "yahoo_symbol": "ECAP.CA", "name": "El Ezz Porcelain (GEMMA)", "held": true, "cost_basis": 33.15, "quantity": 29 },
     { "symbol": "MASR", "yahoo_symbol": "MASR.CA", "name": "Madinet Masr for Housing and Development", "held": true, "cost_basis": 8.03, "quantity": 125 },
-    { "symbol": "GOUR", "yahoo_symbol": "GOUR.CA", "name": "Gourmet Egypt", "held": true, "cost_basis": null, "quantity": null },
-    { "symbol": "RMDA", "yahoo_symbol": "RMDA.CA", "name": "Rameda Pharmaceutical Company", "held": true, "cost_basis": null, "quantity": null },
-    { "symbol": "BONY", "yahoo_symbol": "BONY.CA", "name": "Bonyan for Development and Trade", "held": true, "cost_basis": null, "quantity": null }
+    { "symbol": "GOUR", "yahoo_symbol": "GOUR.CA", "name": "Gourmet Egypt.Com Foods", "held": true, "cost_basis": 9.98, "quantity": 68 },
+    { "symbol": "RMDA", "yahoo_symbol": "RMDA.CA", "name": "Rameda Pharmaceutical Company", "held": true, "cost_basis": 4.38, "quantity": 581 },
+    { "symbol": "BONY", "yahoo_symbol": "BONY.CA", "name": "Bonyan for Development and Trade", "held": true, "cost_basis": 4.01, "quantity": 101 }
   ]
 }
