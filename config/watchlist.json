@@ -1,0 +1,15 @@
+{
+  "_disclaimer": "STARTER LIST ONLY. These EGX tickers were chosen by excluding obviously non-compliant sectors (conventional banks, insurers, brokerages/interest-based finance, alcohol, tobacco, gambling). This is NOT a certified Sharia screening and was not cross-checked against the official EGX Shariah Index or a Sharia advisory board. Verify every ticker yourself before relying on it, and edit this file to match your own screening.",
+  "tickers": [
+    { "symbol": "SWDY", "yahoo_symbol": "SWDY.CA", "name": "Elsewedy Electric" },
+    { "symbol": "ORAS", "yahoo_symbol": "ORAS.CA", "name": "Orascom Construction" },
+    { "symbol": "ORHD", "yahoo_symbol": "ORHD.CA", "name": "Orascom Development Egypt" },
+    { "symbol": "TMGH", "yahoo_symbol": "TMGH.CA", "name": "Talaat Moustafa Group Holding" },
+    { "symbol": "ETEL", "yahoo_symbol": "ETEL.CA", "name": "Telecom Egypt" },
+    { "symbol": "EFID", "yahoo_symbol": "EFID.CA", "name": "Edita Food Industries" },
+    { "symbol": "JUFO", "yahoo_symbol": "JUFO.CA", "name": "Juhayna Food Industries" },
+    { "symbol": "ESRS", "yahoo_symbol": "ESRS.CA", "name": "Ezz Steel" },
+    { "symbol": "ABUK", "yahoo_symbol": "ABUK.CA", "name": "Abu Qir Fertilizers" },
+    { "symbol": "CIRA", "yahoo_symbol": "CIRA.CA", "name": "CIRA Education" }
+  ]
+}
