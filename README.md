@@ -43,7 +43,17 @@ Shariah Index or a qualified Sharia advisory board, and index composition change
 over time. Verify each ticker yourself (e.g. against EGX's published Shariah Index
 constituents or a screening service) before relying on it, and edit the JSON file
 to match your own list. Add/remove tickers as `{ "symbol": "XXXX", "yahoo_symbol":
-"XXXX.CA", "name": "Company Name" }`.
+"XXXX.CA", "name": "Company Name", "held": false }`.
+
+### Marking your actual Thndr holdings
+
+Set `"held": true` on any ticker you actually own in Thndr. The bot doesn't connect
+to your Thndr account (see above for why), so it has no way to know your real
+positions — this field is how you tell it manually. Held positions get tagged
+"— you hold this" in alerts and are sorted to the top of the message, since a SELL
+signal on something you own is more time-sensitive than a BUY idea on something you
+don't. Add any tickers you hold that aren't already in the starter list, with
+`held: true`.
 
 ## Setup
 

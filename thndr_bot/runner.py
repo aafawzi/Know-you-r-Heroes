@@ -14,12 +14,13 @@ logger = logging.getLogger(__name__)
 
 def run() -> None:
     watchlist = load_watchlist()
-    actionable_lines: list[str] = []
+    actionable: list[tuple[bool, str]] = []  # (held, formatted line)
 
     for ticker in watchlist:
         symbol = ticker["symbol"]
         yahoo_symbol = ticker["yahoo_symbol"]
         name = ticker.get("name", symbol)
+        held = ticker.get("held", False)
 
         df = fetch_history(yahoo_symbol, period=STRATEGY.history_period)
         if df is None:
@@ -31,9 +32,10 @@ def run() -> None:
             continue
 
         logger.info(
-            "%s (%s): %s | price=%.2f SMA%d=%.2f SMA%d=%.2f RSI%d=%.1f",
+            "%s (%s)%s: %s | price=%.2f SMA%d=%.2f SMA%d=%.2f RSI%d=%.1f",
             symbol,
             name,
+            " [held]" if held else "",
             signal.action,
             signal.price,
             STRATEGY.sma_fast,
@@ -45,9 +47,18 @@ def run() -> None:
         )
 
         if signal.action in ("BUY", "SELL"):
-            actionable_lines.append(
-                f"*{signal.action}* {symbol} ({name}) @ {signal.price:.2f} | RSI={signal.rsi:.1f}"
+            held_tag = " — you hold this" if held else ""
+            actionable.append(
+                (
+                    held,
+                    f"*{signal.action}* {symbol} ({name}) @ {signal.price:.2f} | RSI={signal.rsi:.1f}{held_tag}",
+                )
             )
+
+    # Portfolio positions surface first - a SELL signal on something you
+    # actually hold is more urgent than a BUY idea on something you don't.
+    actionable.sort(key=lambda item: not item[0])
+    actionable_lines = [line for _held, line in actionable]
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
