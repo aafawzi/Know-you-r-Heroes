@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from .config import STRATEGY, load_watchlist
 from .data import fetch_history
 from .notifier import send_telegram_message
+from .regime import compute_regime
 from .strategy import compute_signal
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -44,8 +45,23 @@ def _format_alert_line(
     return line
 
 
+def _market_regime_context() -> str:
+    """EGX30 vs its own SMA - informational context only, doesn't gate any signal.
+
+    See backtest.py --regime-filter for whether gating on this actually
+    helps before treating it as more than a "here's the backdrop" note.
+    """
+    index_df = fetch_history(STRATEGY.regime_index_symbol, period=STRATEGY.regime_history_period)
+    if index_df is None:
+        return "unavailable"
+    regime = compute_regime(index_df, sma_period=STRATEGY.regime_sma_period)
+    return regime or "not enough history yet"
+
+
 def run() -> None:
     watchlist = load_watchlist()
+    market_regime = _market_regime_context()
+    logger.info("Market regime (EGX30 vs %d-day SMA): %s", STRATEGY.regime_sma_period, market_regime)
     actionable: list[tuple[bool, str]] = []  # (held, formatted line)
 
     for ticker in watchlist:
@@ -92,7 +108,8 @@ def run() -> None:
 
     if actionable_lines:
         message = (
-            f"EGX Signal Bot — {timestamp}\n\n"
+            f"EGX Signal Bot — {timestamp}\n"
+            f"Market: EGX30 {market_regime} (vs {STRATEGY.regime_sma_period}-day avg)\n\n"
             + "\n".join(actionable_lines)
             + "\n\n_Signal only — not financial advice. Review and place any trade yourself in Thndr._"
         )

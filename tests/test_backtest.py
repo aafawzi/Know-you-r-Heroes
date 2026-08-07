@@ -104,6 +104,29 @@ def test_backtest_exits_at_take_profit_when_opted_in():
     assert trade.exit_reason == "take_profit"
 
 
+def test_regime_filter_blocks_buy_in_bear_market():
+    # Same golden cross as test_backtest_closes_trade_on_round_trip, but the
+    # regime is "bearish" on the entry bar - no trade should open at all.
+    closes = [10, 10, 10, 10, 20, 20, 20, 0]
+    df = pd.DataFrame({"Close": closes})
+    regime = pd.Series(["bearish"] * len(df), index=df.index)
+
+    result = backtest_ticker(df, "TEST", cfg=_CFG, regime=regime)
+
+    assert result.trades == []
+
+
+def test_regime_filter_allows_buy_in_bull_market():
+    closes = [10, 10, 10, 10, 20, 20, 20, 0]
+    df = pd.DataFrame({"Close": closes})
+    regime = pd.Series(["bullish"] * len(df), index=df.index)
+
+    result = backtest_ticker(df, "TEST", cfg=_CFG, regime=regime)
+
+    assert len(result.closed_trades) == 1
+    assert result.closed_trades[0].entry_price == 20
+
+
 def test_split_history_divides_by_fraction():
     df = pd.DataFrame({"Close": list(range(10))})
 

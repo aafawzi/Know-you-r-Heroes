@@ -32,6 +32,14 @@ class StrategyConfig:
     atr_reward_multiplier: float = 3.0
     risk_per_trade_pct: float = 1.0
 
+    # EGX30 market-regime context shown in alerts (bullish/bearish vs. the
+    # index's own SMA). Informational only by default - see
+    # backtest.py --regime-filter for whether gating BUY signals on it
+    # actually helps before relying on it as more than context.
+    regime_index_symbol: str = "^CASE30"
+    regime_sma_period: int = 200
+    regime_history_period: str = "2y"
+
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")

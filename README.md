@@ -33,7 +33,12 @@ Verify signals yourself before acting on them.
    a position-sizing formula (risk ≤1% of portfolio per trade — you supply your own
    portfolio value). Nothing in the bot forces an exit at these levels; that's a
    deliberate, backtest-informed choice — see below.
-5. Any BUY/SELL signals are sent to you as a single Telegram message, held positions
+5. Every run also fetches the EGX30 index (`^CASE30`) and computes whether it's
+   above or below its own 200-day SMA - shown at the top of the Telegram message as
+   market context (e.g. "Market: EGX30 bullish (vs 200-day avg)"). Like the ATR
+   levels, this is **informational only** and doesn't gate any signal; see
+   `backtest.py --regime-filter` below for whether gating on it would actually help.
+6. Any BUY/SELL signals are sent to you as a single Telegram message, held positions
    first.
 
 These parameters live in `thndr_bot/config.py` (`StrategyConfig`) if you want to
@@ -72,6 +77,26 @@ best-supported option among what's been tried here, not a guarantee. `backtest_t
 still accepts `use_stop_loss_exit=True` / `use_take_profit_exit=True` if you want to
 re-run that comparison yourself, and the ATR levels are always computed and shown
 in alerts even though nothing acts on them automatically.
+
+### Checking for overfitting
+
+Everything above was validated by repeatedly backtesting the same 3-year window,
+which risks tuning to that specific stretch rather than anything that generalizes.
+Run `python backtest.py --split 0.6` to backtest the first 60% of the period
+in-sample and the last 40% out-of-sample separately, with a pooled (trade-weighted)
+win rate and average return for each half. The last run showed a real drop
+out-of-sample (pooled win rate 49.1% in-sample vs. 31.0% out-of-sample, average
+return/trade 6.8% vs. 2.4%) — a reminder to treat any single full-period backtest
+number with real skepticism, and to re-run this split check after any future
+strategy change.
+
+### Market-regime filter (untested in production, available for comparison)
+
+`python backtest.py --regime-filter` (composable with `--split`) only takes BUY
+signals while EGX30 is above its own 200-day SMA, and reports the same metrics as
+the plain backtest so you can compare. Given the track record above — every gating
+rule tried so far has underperformed just trading the crossover directly — don't
+assume this one will be different until you've actually looked at the numbers.
 
 ## About the watchlist — read before using
 
@@ -185,7 +210,9 @@ thndr_bot/
   data.py                       Yahoo Finance price fetching
   strategy.py                   SMA-crossover + RSI signal logic, plus reference-only
                                  ATR stop-loss/take-profit levels
-  backtest.py                   walk-forward trade simulator + performance metrics
+  regime.py                     EGX30 bullish/bearish regime context (informational)
+  backtest.py                   walk-forward trade simulator + performance metrics,
+                                 walk-forward split, and regime-filter comparison
   notifier.py                   Telegram sending
   runner.py                     orchestrates fetch -> signal -> notify for the watchlist
 config/watchlist.json           tickers to track (edit this to change coverage)

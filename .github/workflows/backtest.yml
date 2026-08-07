@@ -11,6 +11,10 @@ on:
         description: "Optional in-sample fraction (e.g. 0.6) to run a walk-forward split instead of a single full-period backtest"
         required: false
         default: ""
+      regime_filter:
+        description: "Set to 'true' to only take BUY signals while EGX30 is above its own SMA"
+        required: false
+        default: "false"
 
 jobs:
   run-backtest:
@@ -28,9 +32,13 @@ jobs:
       - name: Run backtest
         env:
           SPLIT: ${{ github.event.inputs.split }}
+          REGIME_FILTER: ${{ github.event.inputs.regime_filter }}
         run: |
+          ARGS="--period ${{ github.event.inputs.period || '3y' }}"
           if [ -n "$SPLIT" ]; then
-            python backtest.py --period "${{ github.event.inputs.period || '3y' }}" --split "$SPLIT"
-          else
-            python backtest.py --period "${{ github.event.inputs.period || '3y' }}"
+            ARGS="$ARGS --split $SPLIT"
           fi
+          if [ "$REGIME_FILTER" = "true" ]; then
+            ARGS="$ARGS --regime-filter"
+          fi
+          python backtest.py $ARGS

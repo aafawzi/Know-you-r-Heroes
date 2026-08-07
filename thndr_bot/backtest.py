@@ -113,6 +113,7 @@ def backtest_ticker(
     cfg: StrategyConfig | None = None,
     use_stop_loss_exit: bool = False,
     use_take_profit_exit: bool = False,
+    regime: pd.Series | None = None,
 ) -> BacktestResult:
     """Walk the strategy forward bar-by-bar (no lookahead) and simulate long-only trades.
 
@@ -125,6 +126,12 @@ def backtest_ticker(
     use_stop_loss_exit=True and/or use_take_profit_exit=True to restore that
     behavior for comparison; the ATR levels are still computed either way and
     available on the Trade/Signal for reference.
+
+    `regime`, if given, must be a Series aligned to df's index (same length
+    and order, e.g. via thndr_bot.regime.regime_series().reindex(df.index,
+    method="ffill")) with values "bullish"/"bearish"/None. When present, a
+    BUY signal is only taken while the regime is "bullish" - this is opt-in
+    for comparison, not the live bot's default behavior.
     """
     cfg = cfg or STRATEGY
     min_bars = cfg.sma_slow + 2
@@ -163,6 +170,8 @@ def backtest_ticker(
             continue
 
         if signal.action == "BUY" and open_trade is None:
+            if regime is not None and regime.iloc[i] != "bullish":
+                continue
             open_trade = Trade(entry_date=date, entry_price=price)
             open_stop = signal.stop_loss
             open_target = signal.take_profit

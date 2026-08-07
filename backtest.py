@@ -1,8 +1,11 @@
 import argparse
 
+import pandas as pd
+
 from thndr_bot.backtest import backtest_ticker, pooled_stats, split_history
-from thndr_bot.config import load_watchlist
+from thndr_bot.config import STRATEGY, load_watchlist
 from thndr_bot.data import fetch_history
+from thndr_bot.regime import regime_series
 
 
 def _fmt(value: float | None) -> str:
@@ -52,8 +55,22 @@ def _print_pooled(results: list, label: str) -> None:
     )
 
 
-def main(period: str = "3y", split_frac: float | None = None) -> None:
+def _aligned_regime(full_regime: pd.Series | None, df: pd.DataFrame) -> pd.Series | None:
+    if full_regime is None:
+        return None
+    return full_regime.reindex(df.index, method="ffill")
+
+
+def main(period: str = "3y", split_frac: float | None = None, use_regime_filter: bool = False) -> None:
     watchlist = load_watchlist()
+
+    full_regime = None
+    if use_regime_filter:
+        index_df = fetch_history(STRATEGY.regime_index_symbol, period=period)
+        if index_df is None:
+            print(f"Could not fetch {STRATEGY.regime_index_symbol} for the regime filter - continuing without it.")
+        else:
+            full_regime = regime_series(index_df, sma_period=STRATEGY.regime_sma_period)
 
     if split_frac is None:
         rows = []
@@ -64,7 +81,7 @@ def main(period: str = "3y", split_frac: float | None = None) -> None:
             if df is None:
                 print(f"{symbol}: no data, skipping")
                 continue
-            result = backtest_ticker(df, symbol)
+            result = backtest_ticker(df, symbol, regime=_aligned_regime(full_regime, df))
             results.append(result)
             rows.append(_row_for(symbol, result))
         _print_table(rows)
@@ -82,11 +99,11 @@ def main(period: str = "3y", split_frac: float | None = None) -> None:
 
         in_df, out_df = split_history(df, split_frac)
 
-        in_result = backtest_ticker(in_df, symbol)
+        in_result = backtest_ticker(in_df, symbol, regime=_aligned_regime(full_regime, in_df))
         in_results.append(in_result)
         in_rows.append(_row_for(symbol, in_result))
 
-        out_result = backtest_ticker(out_df, symbol)
+        out_result = backtest_ticker(out_df, symbol, regime=_aligned_regime(full_regime, out_df))
         out_results.append(out_result)
         out_rows.append(_row_for(symbol, out_result))
 
@@ -106,5 +123,10 @@ if __name__ == "__main__":
         metavar="FRACTION",
         help="e.g. 0.6 to backtest the first 60%% of the period (in-sample) and last 40%% (out-of-sample) separately",
     )
+    parser.add_argument(
+        "--regime-filter",
+        action="store_true",
+        help="Only take BUY signals while EGX30 is above its own SMA, for comparison against the unfiltered baseline",
+    )
     args = parser.parse_args()
-    main(period=args.period, split_frac=args.split)
+    main(period=args.period, split_frac=args.split, use_regime_filter=args.regime_filter)
