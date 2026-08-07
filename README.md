@@ -133,10 +133,42 @@ persistent uptrend you can sit out the rest of the move entirely.
 So it lands in the same place as the confluence filter and the fixed stop: a
 rule that sounds prudent, measurably reduces volatility, and costs more in
 forgone upside than it saves. **Live signals are unchanged** — the trailing
-stop is opt-in for backtesting only. If you want smoother equity and are
-willing to pay for it in return, the numbers above are the price. Worth
-re-checking with a wider multiplier (5-6 ATR) before writing the idea off
-completely; 3 ATR is the only setting tested so far.
+stop is opt-in for backtesting only.
+
+#### Is 3 ATR just too tight? No — there's no sweet spot
+
+`python backtest.py --trail-sweep 2 3 4 5 6 8 10` runs the baseline and every
+width over a single data pull, so all rows see identical bars:
+
+| Setting | Trades | WinRate% | AvgRet% | MeanTotalRet% | MeanMaxDD% | RMDA Total% |
+|---|---|---|---|---|---|---|
+| baseline (no trail) | 103 | 41.7 | **5.6** | **33.2** | 17.5 | **113.8** |
+| 2 ATR | 117 | 47.0 | 1.4 | 9.5 | **6.7** | 15.9 |
+| 3 ATR | 116 | 47.4 | 1.6 | 10.4 | 9.8 | 3.4 |
+| 4 ATR | 114 | 40.4 | 1.4 | 9.4 | 13.4 | 1.8 |
+| 5 ATR | 112 | 42.0 | 3.0 | 17.6 | 14.3 | 27.8 |
+| 6 ATR | 112 | 38.4 | 2.8 | 17.6 | 15.3 | 79.8 |
+| 8 ATR | 111 | 43.2 | 3.3 | 21.4 | 13.9 | 107.8 |
+| 10 ATR | 111 | 41.4 | 4.6 | 27.7 | 16.8 | 113.8 |
+
+Widening the trail doesn't find a better setting — it just slides a dial. Every
+step wider gives back drawdown protection (6.7% → 16.8%) and buys back return
+(9.5% → 27.7%), until at 10 ATR the stop barely fires at all and the whole
+thing converges *to* the baseline (RMDA back to exactly 113.8%). There is no
+width at which the trail beats simply not having one.
+
+Risk-adjusted it's the same verdict. Return per unit of drawdown
+(MeanTotalRet ÷ MeanMaxDD) is **1.90 for the baseline** and below it at every
+single width — 1.42, 1.06, 0.70, 1.23, 1.15, 1.54, 1.65 — rising toward
+baseline only as the trail stops mattering. So the trail isn't even buying
+cheaper risk; it's strictly worse on that measure too.
+
+One correction to the 3-ATR write-up above: the win-rate "improvement" doesn't
+survive the sweep. Across widths it wanders between 38.4% and 47.4% with no
+trend, landing *below* baseline at 4 and 6 ATR. On ~110 trades that spread is
+noise, and the 47.4% at 3 ATR shouldn't be read as a real effect. The
+systematic, reproducible effect is the one on drawdown — and its price is
+return.
 
 ### Checking for overfitting
 
