@@ -23,6 +23,10 @@ on:
         description: "Space-separated ATR trail widths to compare against the baseline, e.g. '3 5 6 8' (overrides other modes)"
         required: false
         default: ""
+      vs_hold:
+        description: "Set to 'true' to compare buy-and-hold vs strategy vs hold-with-signal-exits (overrides other modes)"
+        required: false
+        default: "false"
 
 jobs:
   run-backtest:
@@ -47,8 +51,13 @@ jobs:
           REGIME_FILTER: ${{ github.event.inputs.regime_filter }}
           TRAILING_STOP: ${{ github.event.inputs.trailing_stop }}
           TRAIL_SWEEP: ${{ github.event.inputs.trail_sweep }}
+          VS_HOLD: ${{ github.event.inputs.vs_hold }}
         run: |
           ARGS="--period ${{ github.event.inputs.period || '3y' }}"
+          if [ "$VS_HOLD" = "true" ]; then
+            python backtest.py $ARGS --vs-hold
+            exit 0
+          fi
           if [ -n "$TRAIL_SWEEP" ]; then
             python backtest.py $ARGS --trail-sweep $TRAIL_SWEEP
             exit 0
