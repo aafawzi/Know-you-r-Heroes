@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from thndr_bot.backtest import backtest_ticker
+from thndr_bot.backtest import backtest_ticker, pooled_stats, split_history
 from thndr_bot.config import StrategyConfig
 
 _CFG = StrategyConfig(sma_fast=2, sma_slow=3, rsi_period=3, rsi_overbought=101, rsi_oversold=-1)
@@ -102,3 +102,44 @@ def test_backtest_exits_at_take_profit_when_opted_in():
     trade = result.closed_trades[0]
     assert trade.exit_price == pytest.approx(39.5)
     assert trade.exit_reason == "take_profit"
+
+
+def test_split_history_divides_by_fraction():
+    df = pd.DataFrame({"Close": list(range(10))})
+
+    in_sample, out_of_sample = split_history(df, split_frac=0.6)
+
+    assert len(in_sample) == 6
+    assert len(out_of_sample) == 4
+    assert list(in_sample["Close"]) == [0, 1, 2, 3, 4, 5]
+    assert list(out_of_sample["Close"]) == [6, 7, 8, 9]
+
+
+def test_split_history_rejects_invalid_fraction():
+    df = pd.DataFrame({"Close": [1.0, 2.0]})
+
+    with pytest.raises(ValueError):
+        split_history(df, split_frac=1.5)
+
+
+def test_pooled_stats_combines_trades_across_tickers():
+    df_a = pd.DataFrame({"Close": [10, 10, 10, 10, 20, 40, 40, 25]})  # buy@20, sell@25 -> +25%
+    result_a = backtest_ticker(df_a, "A", cfg=_CFG)
+
+    df_b = pd.DataFrame({"Close": [10, 10, 10, 10, 20, 60, 60, 45]})  # buy@20, sell@45 -> +125%
+    result_b = backtest_ticker(df_b, "B", cfg=_CFG)
+
+    stats = pooled_stats([result_a, result_b])
+
+    assert stats["trades"] == 2
+    assert stats["win_rate"] == 100.0
+    assert stats["avg_return"] == pytest.approx((25 + 125) / 2)
+
+
+def test_pooled_stats_empty_when_no_closed_trades():
+    df = pd.DataFrame({"Close": [10.0] * 10})
+    result = backtest_ticker(df, "TEST", cfg=_CFG)
+
+    stats = pooled_stats([result])
+
+    assert stats == {"trades": 0, "win_rate": None, "avg_return": None}

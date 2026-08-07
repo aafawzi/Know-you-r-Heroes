@@ -77,6 +77,36 @@ class BacktestResult:
         return max_dd
 
 
+def split_history(df: pd.DataFrame, split_frac: float = 0.6) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split a price history into an earlier in-sample slice and a later out-of-sample slice.
+
+    Used to check whether a backtest result holds up on data the strategy
+    wasn't eyeballed against, rather than trusting a single full-period run.
+    """
+    if not 0 < split_frac < 1:
+        raise ValueError("split_frac must be between 0 and 1 (exclusive)")
+    split_idx = int(len(df) * split_frac)
+    return df.iloc[:split_idx], df.iloc[split_idx:]
+
+
+def pooled_stats(results: list[BacktestResult]) -> dict:
+    """Pool closed trades across multiple tickers into one win rate / avg return.
+
+    A simple average of per-ticker win rates weights a ticker with 1 trade
+    the same as one with 8; pooling trades first gives a more honest overall
+    picture of how the strategy performed across the whole watchlist.
+    """
+    all_closed = [t for r in results for t in r.closed_trades]
+    if not all_closed:
+        return {"trades": 0, "win_rate": None, "avg_return": None}
+    wins = sum(1 for t in all_closed if t.return_pct > 0)
+    return {
+        "trades": len(all_closed),
+        "win_rate": wins / len(all_closed) * 100,
+        "avg_return": sum(t.return_pct for t in all_closed) / len(all_closed),
+    }
+
+
 def backtest_ticker(
     df: pd.DataFrame,
     symbol: str,
