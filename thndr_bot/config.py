@@ -32,7 +32,7 @@ class StrategyConfig:
     bb_std: float = 2.0
     volume_avg_period: int = 20
     volume_confirm_multiplier: float = 1.2
-    confluence_required: int = 3
+    confluence_required: int = 2
 
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
