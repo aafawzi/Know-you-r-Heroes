@@ -45,6 +45,27 @@ def _format_alert_line(
     return line
 
 
+def _portfolio_line(
+    symbol: str,
+    name: str,
+    price: float,
+    cost_basis: float | None,
+    quantity: float | None,
+) -> tuple[str, float | None]:
+    """One line for the always-sent portfolio summary. Returns (line, pnl_abs)."""
+    line = f"{symbol} ({name}): {price:.2f} EGP"
+    pnl_abs = None
+    if cost_basis is not None:
+        pnl_pct = (price - cost_basis) / cost_basis * 100
+        line += f" | cost {cost_basis:.2f} → {pnl_pct:+.1f}%"
+        if quantity is not None:
+            pnl_abs = (price - cost_basis) * quantity
+            line += f", {pnl_abs:+.2f} EGP on {quantity:g} shares"
+    else:
+        line += " | cost basis not set"
+    return line, pnl_abs
+
+
 def _market_regime_context() -> str:
     """EGX30 vs its own SMA - informational context only, doesn't gate any signal.
 
@@ -78,6 +99,10 @@ def run() -> None:
     market_regime = _market_regime_context()
     logger.info("Market regime (EGX30 vs %d-day SMA): %s", STRATEGY.regime_sma_period, market_regime)
     actionable: list[tuple[bool, str]] = []  # (held, formatted line)
+    portfolio_lines: list[str] = []
+    total_pnl = 0.0
+    any_pnl_known = False
+    any_cost_basis_missing = False
 
     for ticker in watchlist:
         symbol = ticker["symbol"]
@@ -89,11 +114,15 @@ def run() -> None:
 
         df = fetch_history(yahoo_symbol, period=STRATEGY.history_period)
         if df is None:
+            if held:
+                portfolio_lines.append(f"{symbol} ({name}): price unavailable")
             continue
 
         signal = compute_signal(df)
         if signal is None:
             logger.info("%s: not enough history yet, skipping", symbol)
+            if held:
+                portfolio_lines.append(f"{symbol} ({name}): not enough history yet")
             continue
 
         logger.info(
@@ -111,6 +140,15 @@ def run() -> None:
             signal.rsi,
         )
 
+        if held:
+            line, pnl_abs = _portfolio_line(symbol, name, signal.price, cost_basis, quantity)
+            portfolio_lines.append(line)
+            if pnl_abs is not None:
+                total_pnl += pnl_abs
+                any_pnl_known = True
+            else:
+                any_cost_basis_missing = True
+
         if signal.action in ("BUY", "SELL"):
             actionable.append((held, _format_alert_line(symbol, name, held, signal, cost_basis, quantity)))
 
@@ -121,16 +159,30 @@ def run() -> None:
 
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+    if not portfolio_lines and not actionable_lines:
+        logger.info("No held positions and no actionable signals this run (%s).", timestamp)
+        return
+
+    sections = [
+        f"EGX Signal Bot — {timestamp}",
+        f"Market: EGX30 {market_regime} (vs {STRATEGY.regime_sma_period}-day avg)",
+    ]
+
+    if portfolio_lines:
+        portfolio_block = "📊 Your Portfolio\n" + "\n".join(portfolio_lines)
+        if any_pnl_known:
+            note = " (partial — some positions missing cost basis)" if any_cost_basis_missing else ""
+            portfolio_block += f"\nTotal unrealized P&L: {total_pnl:+.2f} EGP{note}"
+        sections.append(portfolio_block)
+
     if actionable_lines:
-        message = (
-            f"EGX Signal Bot — {timestamp}\n"
-            f"Market: EGX30 {market_regime} (vs {STRATEGY.regime_sma_period}-day avg)\n\n"
-            + "\n".join(actionable_lines)
-            + "\n\n_Signal only — not financial advice. Review and place any trade yourself in Thndr._"
-        )
-        send_telegram_message(message)
-    else:
-        logger.info("No actionable signals this run (%s).", timestamp)
+        sections.append("🔔 Signals\n" + "\n".join(actionable_lines))
+
+    message = (
+        "\n\n".join(sections)
+        + "\n\n_Signal only — not financial advice. Review and place any trade yourself in Thndr._"
+    )
+    send_telegram_message(message)
 
 
 if __name__ == "__main__":

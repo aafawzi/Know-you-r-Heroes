@@ -1,4 +1,4 @@
-from thndr_bot.runner import _format_alert_line
+from thndr_bot.runner import _format_alert_line, _portfolio_line
 from thndr_bot.strategy import Signal
 
 
@@ -46,3 +46,26 @@ def test_alert_shows_stop_loss_and_reference_take_profit_for_buy():
 
     assert "Stop-loss: 90.00" in line
     assert "Take-profit (reference only): 130.00" in line
+
+
+def test_portfolio_line_shows_price_only_without_cost_basis():
+    line, pnl_abs = _portfolio_line("ETEL", "Telecom Egypt", price=42.0, cost_basis=None, quantity=None)
+
+    assert "42.00 EGP" in line
+    assert "cost basis not set" in line
+    assert pnl_abs is None
+
+
+def test_portfolio_line_shows_pnl_pct_with_cost_basis_only():
+    line, pnl_abs = _portfolio_line("ETEL", "Telecom Egypt", price=42.0, cost_basis=30.0, quantity=None)
+
+    assert "+40.0%" in line
+    assert pnl_abs is None
+
+
+def test_portfolio_line_shows_absolute_pnl_with_quantity():
+    line, pnl_abs = _portfolio_line("ETEL", "Telecom Egypt", price=42.0, cost_basis=30.0, quantity=10)
+
+    assert "+120.00 EGP" in line
+    assert "10 shares" in line
+    assert pnl_abs == 120.0

@@ -53,8 +53,14 @@ Verify signals yourself before acting on them.
    "bearish" (an earlier version of this code got that backwards and would have
    silently zeroed out every trade whenever the index data was thin - worth
    knowing if you ever see `--regime-filter` produce suspiciously few trades).
-6. Any BUY/SELL signals are sent to you as a single Telegram message, held positions
-   first.
+6. Every run sends you a single Telegram message with two parts:
+   - **Your Portfolio** — every ticker marked `held: true`, always included whether
+     or not it has a signal, showing current price and (if `cost_basis`/`quantity`
+     are set) your unrealized P&L and a total across all held positions. This is
+     what keeps your portfolio visible on every run, not just on signal days.
+   - **Signals** — any BUY/SELL crossovers this run, held positions first (a SELL
+     on something you own is more urgent than a BUY idea on something you don't).
+   If there are no held positions and no signals, nothing is sent.
 
 These parameters live in `thndr_bot/config.py` (`StrategyConfig`) if you want to
 tune them.
@@ -138,10 +144,12 @@ don't. Add any tickers you hold that aren't already in the starter list, with
 ### Tracking real profit/loss
 
 Optionally set `"cost_basis"` (your average purchase price per share, EGP) and
-`"quantity"` (shares held) on a held ticker. When present, alerts show your actual
-unrealized P&L — e.g. `Your position: cost 30.00 → now 42.00 (+40.0%), +120.00 EGP
-on 10 shares` — instead of just the bare signal price. Both are optional and default
-to `null`; the bot works fine without them, you just lose that context in the alert.
+`"quantity"` (shares held) on a held ticker. When present, both the always-sent
+portfolio summary and any BUY/SELL alert on that ticker show your actual unrealized
+P&L — e.g. `ETEL (Telecom Egypt): 42.00 EGP | cost 30.00 → +40.0%, +120.00 EGP on 10
+shares` — instead of just the bare price, and the portfolio summary totals P&L
+across all positions that have both fields set. Both are optional and default to
+`null`; the bot works fine without them, you just get price-only lines and no total.
 
 ## Setup
 
