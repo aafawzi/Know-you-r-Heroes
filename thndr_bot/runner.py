@@ -12,9 +12,23 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger(__name__)
 
 
-def _format_alert_line(symbol: str, name: str, held: bool, signal) -> str:
+def _format_alert_line(
+    symbol: str,
+    name: str,
+    held: bool,
+    signal,
+    cost_basis: float | None = None,
+    quantity: float | None = None,
+) -> str:
     held_tag = " — you hold this" if held else ""
     line = f"*{signal.action}* {symbol} ({name}) @ {signal.price:.2f} | RSI={signal.rsi:.1f}{held_tag}"
+
+    if held and cost_basis is not None:
+        pnl_pct = (signal.price - cost_basis) / cost_basis * 100
+        line += f"\n    Your position: cost {cost_basis:.2f} → now {signal.price:.2f} ({pnl_pct:+.1f}%)"
+        if quantity is not None:
+            pnl_abs = (signal.price - cost_basis) * quantity
+            line += f", {pnl_abs:+.2f} EGP on {quantity:g} shares"
 
     if signal.action == "BUY" and signal.stop_loss is not None and signal.take_profit is not None:
         risk_per_share = signal.price - signal.stop_loss
@@ -39,6 +53,8 @@ def run() -> None:
         yahoo_symbol = ticker["yahoo_symbol"]
         name = ticker.get("name", symbol)
         held = ticker.get("held", False)
+        cost_basis = ticker.get("cost_basis")
+        quantity = ticker.get("quantity")
 
         df = fetch_history(yahoo_symbol, period=STRATEGY.history_period)
         if df is None:
@@ -65,7 +81,7 @@ def run() -> None:
         )
 
         if signal.action in ("BUY", "SELL"):
-            actionable.append((held, _format_alert_line(symbol, name, held, signal)))
+            actionable.append((held, _format_alert_line(symbol, name, held, signal, cost_basis, quantity)))
 
     # Portfolio positions surface first - a SELL signal on something you
     # actually hold is more urgent than a BUY idea on something you don't.

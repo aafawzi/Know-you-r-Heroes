@@ -95,6 +95,14 @@ signal on something you own is more time-sensitive than a BUY idea on something 
 don't. Add any tickers you hold that aren't already in the starter list, with
 `held: true`.
 
+### Tracking real profit/loss
+
+Optionally set `"cost_basis"` (your average purchase price per share, EGP) and
+`"quantity"` (shares held) on a held ticker. When present, alerts show your actual
+unrealized P&L — e.g. `Your position: cost 30.00 → now 42.00 (+40.0%), +120.00 EGP
+on 10 shares` — instead of just the bare signal price. Both are optional and default
+to `null`; the bot works fine without them, you just lose that context in the alert.
+
 ## Setup
 
 ### 1. Install dependencies
