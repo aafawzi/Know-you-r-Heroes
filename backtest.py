@@ -1,4 +1,5 @@
 import argparse
+import time
 from dataclasses import replace
 
 import pandas as pd
@@ -79,12 +80,14 @@ def sweep_trail_multipliers(period: str, multipliers: list[float], watch_symbol:
     """
     watchlist = load_watchlist()
     frames: dict[str, pd.DataFrame] = {}
+    fetch_start = time.monotonic()
     for ticker in watchlist:
         df = fetch_history(ticker["yahoo_symbol"], period=period)
         if df is None:
             print(f"{ticker['symbol']}: no data, skipping")
             continue
         frames[ticker["symbol"]] = df
+    print(f"Fetched {len(frames)} tickers in {time.monotonic() - fetch_start:.1f}s")
 
     print(f"\nTrailing-stop sweep over {len(frames)} tickers ({period})")
     header = (

@@ -39,6 +39,10 @@ jobs:
 
       - name: Run backtest
         env:
+          # Without this, Python block-buffers stdout to the runner's pipe and
+          # a long sweep shows no output at all until it finishes - which makes
+          # a slow run indistinguishable from a hung one.
+          PYTHONUNBUFFERED: "1"
           SPLIT: ${{ github.event.inputs.split }}
           REGIME_FILTER: ${{ github.event.inputs.regime_filter }}
           TRAILING_STOP: ${{ github.event.inputs.trailing_stop }}
