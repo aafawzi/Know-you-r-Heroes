@@ -21,8 +21,8 @@
     { "symbol": "CLHO", "yahoo_symbol": "CLHO.CA", "name": "Cleopatra Hospitals Group", "held": true },
     { "symbol": "ECAP", "yahoo_symbol": "ECAP.CA", "name": "ECAP (verify company name)", "held": true },
     { "symbol": "MASR", "yahoo_symbol": "MASR.CA", "name": "Madinet Masr for Housing and Development", "held": true },
-    { "symbol": "GOUR", "yahoo_symbol": "GOUR.CA", "name": "GOUR (verify company name)", "held": true },
+    { "symbol": "GOUR", "yahoo_symbol": "GOUR.CA", "name": "Gourmet Egypt", "held": true },
     { "symbol": "RMDA", "yahoo_symbol": "RMDA.CA", "name": "RMDA (verify company name)", "held": true },
-    { "symbol": "BONY", "yahoo_symbol": "BONY.CA", "name": "BONY (verify company name)", "held": true }
+    { "symbol": "BONY", "yahoo_symbol": "BONY.CA", "name": "Bonyan for Development and Trade", "held": true }
   ]
 }
