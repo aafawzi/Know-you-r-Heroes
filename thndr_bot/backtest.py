@@ -77,13 +77,22 @@ class BacktestResult:
         return max_dd
 
 
-def backtest_ticker(df: pd.DataFrame, symbol: str, cfg: StrategyConfig | None = None) -> BacktestResult:
+def backtest_ticker(
+    df: pd.DataFrame,
+    symbol: str,
+    cfg: StrategyConfig | None = None,
+    use_take_profit_exit: bool = False,
+) -> BacktestResult:
     """Walk the strategy forward bar-by-bar (no lookahead) and simulate long-only trades.
 
-    Once in a position, each subsequent bar's High/Low is checked against the
-    ATR stop-loss/take-profit captured at entry before evaluating a new
-    signal - a stop or target hit closes the trade even without a SELL
-    crossover, matching how the risk-management levels are meant to be used.
+    Once in a position, each subsequent bar's Low is checked against the ATR
+    stop-loss captured at entry before evaluating a new signal - a stop hit
+    closes the trade even without a SELL crossover. The take-profit level is
+    informational only by default (use_take_profit_exit=False): backtesting
+    showed a fixed take-profit caps exactly the large trend moves this
+    strategy depends on to be worthwhile, so positions ride to the next SELL
+    crossover instead. Pass use_take_profit_exit=True to restore the old
+    behavior for comparison.
     """
     cfg = cfg or STRATEGY
     min_bars = max(cfg.sma_slow, cfg.macd_slow + cfg.macd_signal_period, cfg.bb_period, cfg.volume_avg_period) + 2
@@ -108,7 +117,7 @@ def backtest_ticker(df: pd.DataFrame, symbol: str, cfg: StrategyConfig | None = 
                 trades.append(open_trade)
                 open_trade = open_stop = open_target = None
                 continue
-            if open_target is not None and high >= open_target:
+            if use_take_profit_exit and open_target is not None and high >= open_target:
                 open_trade.exit_date = date
                 open_trade.exit_price = open_target
                 open_trade.exit_reason = "take_profit"

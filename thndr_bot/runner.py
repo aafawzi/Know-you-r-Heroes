@@ -25,7 +25,7 @@ def _format_alert_line(symbol: str, name: str, held: bool, signal) -> str:
         target_pct = (signal.take_profit - signal.price) / signal.price * 100
         line += (
             f"\n    Stop-loss: {signal.stop_loss:.2f} ({stop_pct:.1f}%) | "
-            f"Take-profit: {signal.take_profit:.2f} (+{target_pct:.1f}%)\n"
+            f"Take-profit (reference only): {signal.take_profit:.2f} (+{target_pct:.1f}%)\n"
             f"    Risk ≤{STRATEGY.risk_per_trade_pct:g}% of portfolio: "
             f"shares = (portfolio value × {STRATEGY.risk_per_trade_pct:g}%) ÷ {risk_per_share:.2f}"
         )

@@ -91,3 +91,52 @@ def test_backtest_exits_at_stop_loss_intraday():
     assert trade.entry_price == 20
     assert trade.exit_price == pytest.approx(7.0)
     assert trade.exit_reason == "stop_loss"
+
+
+_ATR_CFG = StrategyConfig(
+    sma_fast=2,
+    sma_slow=3,
+    rsi_period=3,
+    rsi_overbought=101,
+    rsi_oversold=-1,
+    macd_fast=1,
+    macd_slow=2,
+    macd_signal_period=1,
+    bb_period=2,
+    bb_std=2.0,
+    volume_avg_period=2,
+    volume_confirm_multiplier=1.0,
+    confluence_required=1,
+    atr_period=2,
+    atr_stop_multiplier=2.0,
+    atr_reward_multiplier=3.0,
+)
+
+
+def test_backtest_take_profit_is_informational_by_default():
+    # Same BUY setup as the stop-loss test (stop=7.0, target=39.5), but index
+    # 5's High blows through the take-profit while staying clear of the stop.
+    closes = [10, 10, 10, 10, 20, 20]
+    highs = [11, 11, 11, 11, 21, 45]
+    lows = [9, 9, 9, 9, 19, 15]
+    df = pd.DataFrame({"Close": closes, "High": highs, "Low": lows})
+
+    result = backtest_ticker(df, "TEST", cfg=_ATR_CFG)
+
+    assert len(result.trades) == 1
+    assert result.trades[0].is_open  # take-profit alone no longer force-closes it
+    assert result.closed_trades == []
+
+
+def test_backtest_take_profit_exit_when_opted_in():
+    closes = [10, 10, 10, 10, 20, 20]
+    highs = [11, 11, 11, 11, 21, 45]
+    lows = [9, 9, 9, 9, 19, 15]
+    df = pd.DataFrame({"Close": closes, "High": highs, "Low": lows})
+
+    result = backtest_ticker(df, "TEST", cfg=_ATR_CFG, use_take_profit_exit=True)
+
+    assert len(result.closed_trades) == 1
+    trade = result.closed_trades[0]
+    assert trade.exit_price == pytest.approx(39.5)
+    assert trade.exit_reason == "take_profit"

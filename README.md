@@ -32,9 +32,14 @@ Verify signals yourself before acting on them.
      Bollinger mid-band. This exists to cut down whipsaws — see the backtest section
      below for what this tradeoff actually looks like on real data.
    - Otherwise: **HOLD** (no alert sent).
-4. A BUY signal also computes an ATR(14)-based stop-loss (entry − 2×ATR) and
-   take-profit (entry + 3×ATR), included in the alert along with a position-sizing
-   formula (risk ≤1% of portfolio per trade — you supply your own portfolio value).
+4. A BUY signal also computes an ATR(14)-based stop-loss (entry − 2×ATR), included
+   in the alert along with a position-sizing formula (risk ≤1% of portfolio per
+   trade — you supply your own portfolio value). A take-profit level (entry +
+   3×ATR) is shown too, but as a **reference only** — backtesting showed that
+   forcing an exit there caps exactly the large trend moves this strategy depends
+   on to be worthwhile, so positions are meant to ride to the next SELL crossover
+   instead. `backtest_ticker(..., use_take_profit_exit=True)` restores the old
+   forced-exit behavior if you want to compare.
 5. Any BUY/SELL signals are sent to you as a single Telegram message, held positions
    first.
 
