@@ -34,6 +34,12 @@ class StrategyConfig:
     volume_confirm_multiplier: float = 1.2
     confluence_required: int = 2
 
+    # ATR-based risk management shown alongside BUY alerts.
+    atr_period: int = 14
+    atr_stop_multiplier: float = 2.0
+    atr_reward_multiplier: float = 3.0
+    risk_per_trade_pct: float = 1.0
+
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")

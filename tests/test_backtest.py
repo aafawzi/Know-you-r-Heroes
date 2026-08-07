@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from thndr_bot.backtest import backtest_ticker
 from thndr_bot.config import StrategyConfig
@@ -55,3 +56,38 @@ def test_backtest_no_signals_no_trades():
 
     assert result.trades == []
     assert result.win_rate_pct is None
+
+
+def test_backtest_exits_at_stop_loss_intraday():
+    cfg = StrategyConfig(
+        sma_fast=2,
+        sma_slow=3,
+        rsi_period=3,
+        rsi_overbought=101,
+        rsi_oversold=-1,
+        macd_fast=1,
+        macd_slow=2,
+        macd_signal_period=1,
+        bb_period=2,
+        bb_std=2.0,
+        volume_avg_period=2,
+        volume_confirm_multiplier=1.0,
+        confluence_required=1,
+        atr_period=2,
+        atr_stop_multiplier=2.0,
+        atr_reward_multiplier=3.0,
+    )
+    # Golden cross + BUY at index 4 (price=20, ATR(2)=6.5 -> stop=7.0, target=39.5).
+    # Index 5's Low crashes through the stop before any SELL crossover happens.
+    closes = [10, 10, 10, 10, 20, 20]
+    highs = [11, 11, 11, 11, 21, 25]
+    lows = [9, 9, 9, 9, 19, 5]
+    df = pd.DataFrame({"Close": closes, "High": highs, "Low": lows})
+
+    result = backtest_ticker(df, "TEST", cfg=cfg)
+
+    assert len(result.closed_trades) == 1
+    trade = result.closed_trades[0]
+    assert trade.entry_price == 20
+    assert trade.exit_price == pytest.approx(7.0)
+    assert trade.exit_reason == "stop_loss"

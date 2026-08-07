@@ -18,6 +18,9 @@ class Signal:
     macd_signal: float
     confluence: int  # how many of {RSI, MACD, volume, Bollinger} confirmed, out of 4
     confluence_required: int
+    atr: float | None = None
+    stop_loss: float | None = None  # only set for BUY - entering a new long
+    take_profit: float | None = None  # only set for BUY
 
 
 def _rsi(close: pd.Series, period: int) -> pd.Series:
@@ -42,6 +45,18 @@ def _bollinger_bands(close: pd.Series, period: int, num_std: float) -> tuple[pd.
     mid = close.rolling(period).mean()
     std = close.rolling(period).std()
     return mid + num_std * std, mid, mid - num_std * std
+
+
+def _atr(df: pd.DataFrame, period: int) -> pd.Series | None:
+    if "High" not in df.columns or "Low" not in df.columns:
+        return None
+    high = df["High"]
+    low = df["Low"]
+    prev_close = df["Close"].shift(1)
+    true_range = pd.concat(
+        [high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1)
+    return true_range.rolling(period).mean()
 
 
 def compute_signal(df: pd.DataFrame, cfg: StrategyConfig | None = None) -> Signal | None:
@@ -103,6 +118,17 @@ def compute_signal(df: pd.DataFrame, cfg: StrategyConfig | None = None) -> Signa
         if confluence >= cfg.confluence_required:
             action = "SELL"
 
+    atr_series = _atr(df, cfg.atr_period)
+    atr_val = None
+    if atr_series is not None and not pd.isna(atr_series.iloc[-1]):
+        atr_val = float(atr_series.iloc[-1])
+
+    stop_loss = None
+    take_profit = None
+    if action == "BUY" and atr_val is not None:
+        stop_loss = price - cfg.atr_stop_multiplier * atr_val
+        take_profit = price + cfg.atr_reward_multiplier * atr_val
+
     return Signal(
         action=action,
         price=price,
@@ -113,4 +139,7 @@ def compute_signal(df: pd.DataFrame, cfg: StrategyConfig | None = None) -> Signa
         macd_signal=macd_signal_val,
         confluence=confluence,
         confluence_required=cfg.confluence_required,
+        atr=atr_val,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
     )

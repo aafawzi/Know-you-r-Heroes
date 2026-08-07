@@ -14,6 +14,7 @@ class Trade:
     entry_price: float
     exit_date: object | None = None
     exit_price: float | None = None
+    exit_reason: str | None = None  # "stop_loss", "take_profit", or "signal"
 
     @property
     def is_open(self) -> bool:
@@ -77,29 +78,59 @@ class BacktestResult:
 
 
 def backtest_ticker(df: pd.DataFrame, symbol: str, cfg: StrategyConfig | None = None) -> BacktestResult:
-    """Walk the strategy forward bar-by-bar (no lookahead) and simulate long-only trades."""
+    """Walk the strategy forward bar-by-bar (no lookahead) and simulate long-only trades.
+
+    Once in a position, each subsequent bar's High/Low is checked against the
+    ATR stop-loss/take-profit captured at entry before evaluating a new
+    signal - a stop or target hit closes the trade even without a SELL
+    crossover, matching how the risk-management levels are meant to be used.
+    """
     cfg = cfg or STRATEGY
     min_bars = max(cfg.sma_slow, cfg.macd_slow + cfg.macd_signal_period, cfg.bb_period, cfg.volume_avg_period) + 2
+    has_hl = "High" in df.columns and "Low" in df.columns
 
     trades: list[Trade] = []
     open_trade: Trade | None = None
+    open_stop: float | None = None
+    open_target: float | None = None
 
     for i in range(min_bars - 1, len(df)):
+        date = df.index[i]
+        price = float(df["Close"].iloc[i])
+
+        if open_trade is not None and has_hl:
+            low = float(df["Low"].iloc[i])
+            high = float(df["High"].iloc[i])
+            if open_stop is not None and low <= open_stop:
+                open_trade.exit_date = date
+                open_trade.exit_price = open_stop
+                open_trade.exit_reason = "stop_loss"
+                trades.append(open_trade)
+                open_trade = open_stop = open_target = None
+                continue
+            if open_target is not None and high >= open_target:
+                open_trade.exit_date = date
+                open_trade.exit_price = open_target
+                open_trade.exit_reason = "take_profit"
+                trades.append(open_trade)
+                open_trade = open_stop = open_target = None
+                continue
+
         window = df.iloc[: i + 1]
         signal = compute_signal(window, cfg=cfg)
         if signal is None:
             continue
 
-        date = df.index[i]
-        price = float(df["Close"].iloc[i])
-
         if signal.action == "BUY" and open_trade is None:
             open_trade = Trade(entry_date=date, entry_price=price)
+            open_stop = signal.stop_loss
+            open_target = signal.take_profit
         elif signal.action == "SELL" and open_trade is not None:
             open_trade.exit_date = date
             open_trade.exit_price = price
+            open_trade.exit_reason = "signal"
             trades.append(open_trade)
-            open_trade = None
+            open_trade = open_stop = open_target = None
 
     if open_trade is not None:
         trades.append(open_trade)
