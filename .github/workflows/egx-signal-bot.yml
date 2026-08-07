@@ -1,8 +1,12 @@
 name: EGX Signal Bot
 
-# Touched to force GitHub to (re-)register this workflow after enabling
-# Actions permissions for this repository.
 on:
+  # Bootstrap trigger: GitHub only lists a workflow (and allows manual
+  # dispatch) once it has actually run at least once. Remove this block
+  # after the first run has registered the workflow.
+  push:
+    branches: [main]
+    paths: [".github/workflows/egx-signal-bot.yml"]
   schedule:
     # ~15:30 Cairo time (EET, UTC+2), Sun-Thu, after the EGX close.
     # Adjust if Egypt is observing a DST offset (UTC+3) at the time.
