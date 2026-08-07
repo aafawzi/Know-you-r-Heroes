@@ -1,5 +1,7 @@
 name: EGX Signal Bot
 
+# Touched to force GitHub to (re-)register this workflow after enabling
+# Actions permissions for this repository.
 on:
   schedule:
     # ~15:30 Cairo time (EET, UTC+2), Sun-Thu, after the EGX close.
