@@ -104,6 +104,80 @@ def test_backtest_exits_at_take_profit_when_opted_in():
     assert trade.exit_reason == "take_profit"
 
 
+_TRAIL_CFG = StrategyConfig(
+    sma_fast=2,
+    sma_slow=3,
+    rsi_period=3,
+    rsi_overbought=101,
+    rsi_oversold=-1,
+    atr_period=2,
+    atr_trail_multiplier=1.0,
+)
+
+# Shared setup for the trailing-stop tests: BUY at index 4 (price 12), a run up
+# to a high of 16.2 at index 6, a quieter pullback bar at index 7, then a slump
+# to 11 at index 8 that death-crosses. The trail ratchets 10.90 -> 12.00 ->
+# 14.00 -> 14.50 across those bars.
+_TRAIL_CLOSES = [10, 10, 10, 10, 12, 14, 16, 15, 11]
+_TRAIL_HIGHS = [10.2, 10.2, 10.2, 10.2, 12.2, 14.2, 16.2, 15.2, 15.2]
+_TRAIL_LOWS = [9.8, 9.8, 9.8, 9.8, 11.8, 13.8, 15.8, 14.8, 10.8]
+
+
+def _trail_df():
+    return pd.DataFrame({"Close": _TRAIL_CLOSES, "High": _TRAIL_HIGHS, "Low": _TRAIL_LOWS})
+
+
+def test_trailing_stop_off_by_default_rides_the_reversal_down():
+    result = backtest_ticker(_trail_df(), "TEST", cfg=_TRAIL_CFG)
+
+    assert len(result.closed_trades) == 1
+    trade = result.closed_trades[0]
+    # Baseline behaviour: hold until the death cross, handing back the entire
+    # run-up and closing below the entry price.
+    assert trade.exit_reason == "signal"
+    assert trade.exit_price == 11
+    assert trade.return_pct < 0
+
+
+def test_trailing_stop_banks_the_run_up_instead_of_giving_it_back():
+    result = backtest_ticker(_trail_df(), "TEST", cfg=_TRAIL_CFG, use_trailing_stop_exit=True)
+
+    assert len(result.closed_trades) == 1
+    trade = result.closed_trades[0]
+    assert trade.exit_reason == "trailing_stop"
+    assert trade.entry_price == 12
+    # Exits at the trail (14.50) rather than the crossover price (11) - the
+    # exact failure a fixed entry-time stop couldn't fix.
+    assert trade.exit_price == pytest.approx(14.5)
+    assert trade.return_pct > 0
+
+
+def test_trailing_stop_ratchets_rather_than_recomputing_each_bar():
+    # Index 7's high (15.2) is below the index 6 peak (16.2) while ATR shrinks
+    # to 1.7. Ratcheting off the peak holds the stop at 16.2 - 1.7 = 14.50; a
+    # stop recomputed from the current bar's high would slip to 15.2 - 1.7 =
+    # 13.50. The exit price on index 8 tells the two apart.
+    result = backtest_ticker(_trail_df(), "TEST", cfg=_TRAIL_CFG, use_trailing_stop_exit=True)
+
+    assert result.closed_trades[0].exit_price == pytest.approx(14.5)
+    assert result.closed_trades[0].exit_price != pytest.approx(13.5)
+
+
+def test_trailing_stop_leaves_the_sell_crossover_in_charge_when_never_breached():
+    # A far-away trail (10 ATRs) is never touched, so the trade must still exit
+    # on the death cross - the trailing stop only ever preempts that exit.
+    far_cfg = StrategyConfig(
+        sma_fast=2, sma_slow=3, rsi_period=3, rsi_overbought=101, rsi_oversold=-1,
+        atr_period=2, atr_trail_multiplier=10.0,
+    )
+
+    result = backtest_ticker(_trail_df(), "TEST", cfg=far_cfg, use_trailing_stop_exit=True)
+
+    assert len(result.closed_trades) == 1
+    assert result.closed_trades[0].exit_reason == "signal"
+    assert result.closed_trades[0].exit_price == 11
+
+
 def test_regime_filter_blocks_buy_in_bear_market():
     # Same golden cross as test_backtest_closes_trade_on_round_trip, but the
     # regime is "bearish" on the entry bar - no trade should open at all.

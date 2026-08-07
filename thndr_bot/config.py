@@ -32,6 +32,13 @@ class StrategyConfig:
     atr_reward_multiplier: float = 3.0
     risk_per_trade_pct: float = 1.0
 
+    # Trailing-stop distance, in ATRs below the highest high reached since
+    # entry. Unlike atr_stop_multiplier (a fixed level set at entry), this
+    # ratchets up as a position runs and never moves down - the specific
+    # weakness that made the fixed stop underperform. Opt-in for backtest
+    # comparison; see backtest.py --trailing-stop.
+    atr_trail_multiplier: float = 3.0
+
     # EGX30 market-regime context shown in alerts (bullish/bearish vs. the
     # index's own SMA). Informational only by default - see
     # backtest.py --regime-filter for whether gating BUY signals on it

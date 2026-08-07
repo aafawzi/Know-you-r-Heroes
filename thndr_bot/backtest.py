@@ -113,6 +113,7 @@ def backtest_ticker(
     cfg: StrategyConfig | None = None,
     use_stop_loss_exit: bool = False,
     use_take_profit_exit: bool = False,
+    use_trailing_stop_exit: bool = False,
     regime: pd.Series | None = None,
 ) -> BacktestResult:
     """Walk the strategy forward bar-by-bar (no lookahead) and simulate long-only trades.
@@ -126,6 +127,13 @@ def backtest_ticker(
     use_stop_loss_exit=True and/or use_take_profit_exit=True to restore that
     behavior for comparison; the ATR levels are still computed either way and
     available on the Trade/Signal for reference.
+
+    use_trailing_stop_exit=True is the answer to *why* the fixed stop failed:
+    the stop sits cfg.atr_trail_multiplier ATRs below the highest high reached
+    since entry and ratchets up as the position runs, never down. A winner in
+    a healthy uptrend drags its stop along behind it instead of waiting at the
+    entry-time level to be clipped by the first ordinary pullback. Also opt-in
+    and unproven - run the backtest before trusting it.
 
     `regime`, if given, must be a Series aligned to df's index (same length
     and order, e.g. via thndr_bot.regime.regime_series().reindex(df.index,
@@ -146,6 +154,8 @@ def backtest_ticker(
     open_trade: Trade | None = None
     open_stop: float | None = None
     open_target: float | None = None
+    open_trail: float | None = None
+    open_peak: float | None = None
 
     for i in range(min_bars - 1, len(df)):
         date = df.index[i]
@@ -154,19 +164,30 @@ def backtest_ticker(
         if open_trade is not None and has_hl:
             low = float(df["Low"].iloc[i])
             high = float(df["High"].iloc[i])
+            # Every level checked here was established on an earlier bar, so
+            # acting on it now doesn't peek at data the strategy couldn't have
+            # had. The trail for this bar is updated further down, after the
+            # exit checks.
             if use_stop_loss_exit and open_stop is not None and low <= open_stop:
                 open_trade.exit_date = date
                 open_trade.exit_price = open_stop
                 open_trade.exit_reason = "stop_loss"
                 trades.append(open_trade)
-                open_trade = open_stop = open_target = None
+                open_trade = open_stop = open_target = open_trail = open_peak = None
+                continue
+            if use_trailing_stop_exit and open_trail is not None and low <= open_trail:
+                open_trade.exit_date = date
+                open_trade.exit_price = open_trail
+                open_trade.exit_reason = "trailing_stop"
+                trades.append(open_trade)
+                open_trade = open_stop = open_target = open_trail = open_peak = None
                 continue
             if use_take_profit_exit and open_target is not None and high >= open_target:
                 open_trade.exit_date = date
                 open_trade.exit_price = open_target
                 open_trade.exit_reason = "take_profit"
                 trades.append(open_trade)
-                open_trade = open_stop = open_target = None
+                open_trade = open_stop = open_target = open_trail = open_peak = None
                 continue
 
         window = df.iloc[: i + 1]
@@ -181,12 +202,22 @@ def backtest_ticker(
             open_trade = Trade(entry_date=date, entry_price=price)
             open_stop = signal.stop_loss
             open_target = signal.take_profit
+            open_peak = float(df["High"].iloc[i]) if has_hl else price
         elif signal.action == "SELL" and open_trade is not None:
             open_trade.exit_date = date
             open_trade.exit_price = price
             open_trade.exit_reason = "signal"
             trades.append(open_trade)
-            open_trade = open_stop = open_target = None
+            open_trade = open_stop = open_target = open_trail = open_peak = None
+
+        # Ratchet the trail up for the *next* bar: track the highest high seen
+        # since entry and sit atr_trail_multiplier ATRs beneath it. max() is
+        # what makes it a trailing stop rather than a recalculated one - a
+        # falling price or an expanding ATR must never loosen the stop.
+        if use_trailing_stop_exit and open_trade is not None and has_hl and signal.atr is not None:
+            open_peak = max(open_peak, float(df["High"].iloc[i]))
+            candidate = open_peak - cfg.atr_trail_multiplier * signal.atr
+            open_trail = candidate if open_trail is None else max(open_trail, candidate)
 
     if open_trade is not None:
         trades.append(open_trade)

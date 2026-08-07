@@ -15,6 +15,10 @@ on:
         description: "Set to 'true' to only take BUY signals while EGX30 is above its own SMA"
         required: false
         default: "false"
+      trailing_stop:
+        description: "Set to 'true' to exit at an ATR trailing stop that ratchets up behind the highest high"
+        required: false
+        default: "false"
 
 jobs:
   run-backtest:
@@ -33,6 +37,7 @@ jobs:
         env:
           SPLIT: ${{ github.event.inputs.split }}
           REGIME_FILTER: ${{ github.event.inputs.regime_filter }}
+          TRAILING_STOP: ${{ github.event.inputs.trailing_stop }}
         run: |
           ARGS="--period ${{ github.event.inputs.period || '3y' }}"
           if [ -n "$SPLIT" ]; then
@@ -40,5 +45,8 @@ jobs:
           fi
           if [ "$REGIME_FILTER" = "true" ]; then
             ARGS="$ARGS --regime-filter"
+          fi
+          if [ "$TRAILING_STOP" = "true" ]; then
+            ARGS="$ARGS --trailing-stop"
           fi
           python backtest.py $ARGS

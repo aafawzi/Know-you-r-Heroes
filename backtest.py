@@ -15,6 +15,7 @@ def _fmt(value: float | None) -> str:
 def _row_for(symbol: str, result) -> dict:
     closed = result.closed_trades
     stops = sum(1 for t in closed if t.exit_reason == "stop_loss")
+    trails = sum(1 for t in closed if t.exit_reason == "trailing_stop")
     targets = sum(1 for t in closed if t.exit_reason == "take_profit")
     signals = sum(1 for t in closed if t.exit_reason == "signal")
     return {
@@ -26,7 +27,7 @@ def _row_for(symbol: str, result) -> dict:
         "total_return": result.total_return_pct,
         "max_drawdown": result.max_drawdown_pct,
         "buy_hold": result.buy_and_hold_return_pct,
-        "exits": f"{stops}sl/{targets}tp/{signals}sig",
+        "exits": f"{stops}sl/{trails}tr/{targets}tp/{signals}sig",
     }
 
 
@@ -35,7 +36,7 @@ def _print_table(rows: list[dict], label: str | None = None) -> None:
         print(f"\n== {label} ==")
     header = (
         f"{'Symbol':<8}{'Trades':>7}{'Open':>6}{'WinRate%':>10}{'AvgRet%':>10}"
-        f"{'TotalRet%':>12}{'MaxDD%':>9}{'BuyHold%':>10}  {'Exits(sl/tp/sig)'}"
+        f"{'TotalRet%':>12}{'MaxDD%':>9}{'BuyHold%':>10}  {'Exits(sl/tr/tp/sig)'}"
     )
     print(header)
     print("-" * len(header))
@@ -61,7 +62,12 @@ def _aligned_regime(full_regime: pd.Series | None, df: pd.DataFrame) -> pd.Serie
     return full_regime.reindex(df.index, method="ffill")
 
 
-def main(period: str = "3y", split_frac: float | None = None, use_regime_filter: bool = False) -> None:
+def main(
+    period: str = "3y",
+    split_frac: float | None = None,
+    use_regime_filter: bool = False,
+    use_trailing_stop: bool = False,
+) -> None:
     watchlist = load_watchlist()
 
     full_regime = None
@@ -81,7 +87,12 @@ def main(period: str = "3y", split_frac: float | None = None, use_regime_filter:
             if df is None:
                 print(f"{symbol}: no data, skipping")
                 continue
-            result = backtest_ticker(df, symbol, regime=_aligned_regime(full_regime, df))
+            result = backtest_ticker(
+                df,
+                symbol,
+                use_trailing_stop_exit=use_trailing_stop,
+                regime=_aligned_regime(full_regime, df),
+            )
             results.append(result)
             rows.append(_row_for(symbol, result))
         _print_table(rows)
@@ -99,11 +110,21 @@ def main(period: str = "3y", split_frac: float | None = None, use_regime_filter:
 
         in_df, out_df = split_history(df, split_frac)
 
-        in_result = backtest_ticker(in_df, symbol, regime=_aligned_regime(full_regime, in_df))
+        in_result = backtest_ticker(
+            in_df,
+            symbol,
+            use_trailing_stop_exit=use_trailing_stop,
+            regime=_aligned_regime(full_regime, in_df),
+        )
         in_results.append(in_result)
         in_rows.append(_row_for(symbol, in_result))
 
-        out_result = backtest_ticker(out_df, symbol, regime=_aligned_regime(full_regime, out_df))
+        out_result = backtest_ticker(
+            out_df,
+            symbol,
+            use_trailing_stop_exit=use_trailing_stop,
+            regime=_aligned_regime(full_regime, out_df),
+        )
         out_results.append(out_result)
         out_rows.append(_row_for(symbol, out_result))
 
@@ -128,5 +149,15 @@ if __name__ == "__main__":
         action="store_true",
         help="Only take BUY signals while EGX30 is above its own SMA, for comparison against the unfiltered baseline",
     )
+    parser.add_argument(
+        "--trailing-stop",
+        action="store_true",
+        help="Exit at an ATR trailing stop that ratchets up behind the highest high since entry",
+    )
     args = parser.parse_args()
-    main(period=args.period, split_frac=args.split, use_regime_filter=args.regime_filter)
+    main(
+        period=args.period,
+        split_frac=args.split,
+        use_regime_filter=args.regime_filter,
+        use_trailing_stop=args.trailing_stop,
+    )
