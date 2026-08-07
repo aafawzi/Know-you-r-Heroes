@@ -38,6 +38,21 @@ Verify signals yourself before acting on them.
    market context (e.g. "Market: EGX30 bullish (vs 200-day avg)"). Like the ATR
    levels, this is **informational only** and doesn't gate any signal; see
    `backtest.py --regime-filter` below for whether gating on it would actually help.
+   **Known limitation:** as of writing, Yahoo Finance only serves `^CASE30` a
+   1-day/5-day history range no matter what period is requested (confirmed by
+   probing `2y`/`5y`/`max` directly, and true of the `^EGX30.CA` and
+   `^EGX30CAPPED.CA` alternates too) - nowhere near the 200 days needed for the
+   SMA. Until Yahoo backfills deeper index history, live runs will show "Market:
+   EGX30 unavailable (Yahoo Finance isn't serving deep history for ^CASE30 right
+   now)" instead of a real bullish/bearish read. The code path is otherwise
+   correct and tested (see `tests/test_regime.py`); this is a live upstream data
+   gap, not a bug here. `backtest.py --regime-filter` fetches `^CASE30` with the
+   same `period` you pass for the backtest itself, so it hits the identical gap -
+   when the index has no usable history, every bar's regime comes back `None`
+   and `backtest_ticker()` treats an unknown regime as "don't block" rather than
+   "bearish" (an earlier version of this code got that backwards and would have
+   silently zeroed out every trade whenever the index data was thin - worth
+   knowing if you ever see `--regime-filter` produce suspiciously few trades).
 6. Any BUY/SELL signals are sent to you as a single Telegram message, held positions
    first.
 

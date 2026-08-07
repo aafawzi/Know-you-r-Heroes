@@ -127,6 +127,20 @@ def test_regime_filter_allows_buy_in_bull_market():
     assert result.closed_trades[0].entry_price == 20
 
 
+def test_regime_filter_allows_buy_when_regime_unknown():
+    # A None per-bar regime (e.g. not enough index history, as currently
+    # happens with ^CASE30) must not be treated the same as "bearish" -
+    # that would silently veto every trade whenever index data is thin.
+    closes = [10, 10, 10, 10, 20, 20, 20, 0]
+    df = pd.DataFrame({"Close": closes})
+    regime = pd.Series([None] * len(df), index=df.index)
+
+    result = backtest_ticker(df, "TEST", cfg=_CFG, regime=regime)
+
+    assert len(result.closed_trades) == 1
+    assert result.closed_trades[0].entry_price == 20
+
+
 def test_split_history_divides_by_fraction():
     df = pd.DataFrame({"Close": list(range(10))})
 

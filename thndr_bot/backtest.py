@@ -131,7 +131,12 @@ def backtest_ticker(
     and order, e.g. via thndr_bot.regime.regime_series().reindex(df.index,
     method="ffill")) with values "bullish"/"bearish"/None. When present, a
     BUY signal is only taken while the regime is "bullish" - this is opt-in
-    for comparison, not the live bot's default behavior.
+    for comparison, not the live bot's default behavior. A None value for a
+    given bar (regime undeterminable, e.g. not enough index history) does
+    NOT block the BUY - only an explicit "bearish" does. Treating "unknown"
+    the same as "bearish" would silently veto every trade whenever the index
+    data is thin, which is exactly what happens with ^CASE30 today - see
+    README.
     """
     cfg = cfg or STRATEGY
     min_bars = cfg.sma_slow + 2
@@ -170,7 +175,8 @@ def backtest_ticker(
             continue
 
         if signal.action == "BUY" and open_trade is None:
-            if regime is not None and regime.iloc[i] != "bullish":
+            bar_regime = regime.iloc[i] if regime is not None else None
+            if bar_regime is not None and bar_regime != "bullish":
                 continue
             open_trade = Trade(entry_date=date, entry_price=price)
             open_stop = signal.stop_loss

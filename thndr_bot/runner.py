@@ -63,7 +63,14 @@ def _market_regime_context() -> str:
         index_df.index[-1].date() if len(index_df) else "n/a",
     )
     regime = compute_regime(index_df, sma_period=STRATEGY.regime_sma_period)
-    return regime or "not enough history yet"
+    if regime is not None:
+        return regime
+    if len(index_df) <= 5:
+        # Yahoo Finance currently caps ^CASE30's available range at 1d/5d
+        # regardless of the period requested - a data-coverage gap on
+        # their end, not a transient fetch issue. See README.
+        return "unavailable (Yahoo Finance isn't serving deep history for ^CASE30 right now)"
+    return "not enough history yet"
 
 
 def run() -> None:

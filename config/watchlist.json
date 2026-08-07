@@ -23,7 +23,7 @@
     { "symbol": "ECAP", "yahoo_symbol": "ECAP.CA", "name": "ECAP (verify company name)", "held": true, "cost_basis": null, "quantity": null },
     { "symbol": "MASR", "yahoo_symbol": "MASR.CA", "name": "Madinet Masr for Housing and Development", "held": true, "cost_basis": null, "quantity": null },
     { "symbol": "GOUR", "yahoo_symbol": "GOUR.CA", "name": "Gourmet Egypt", "held": true, "cost_basis": null, "quantity": null },
-    { "symbol": "RMDA", "yahoo_symbol": "RMDA.CA", "name": "RMDA (verify company name)", "held": true, "cost_basis": null, "quantity": null },
+    { "symbol": "RMDA", "yahoo_symbol": "RMDA.CA", "name": "Rameda Pharmaceutical Company", "held": true, "cost_basis": null, "quantity": null },
     { "symbol": "BONY", "yahoo_symbol": "BONY.CA", "name": "Bonyan for Development and Trade", "held": true, "cost_basis": null, "quantity": null }
   ]
 }
