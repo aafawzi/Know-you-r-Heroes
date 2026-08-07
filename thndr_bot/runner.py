@@ -54,6 +54,14 @@ def _market_regime_context() -> str:
     index_df = fetch_history(STRATEGY.regime_index_symbol, period=STRATEGY.regime_history_period)
     if index_df is None:
         return "unavailable"
+    logger.info(
+        "%s: fetched %d rows (need %d for the SMA), %s to %s",
+        STRATEGY.regime_index_symbol,
+        len(index_df),
+        STRATEGY.regime_sma_period,
+        index_df.index[0].date() if len(index_df) else "n/a",
+        index_df.index[-1].date() if len(index_df) else "n/a",
+    )
     regime = compute_regime(index_df, sma_period=STRATEGY.regime_sma_period)
     return regime or "not enough history yet"
 
