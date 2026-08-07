@@ -32,7 +32,7 @@ def run() -> None:
             continue
 
         logger.info(
-            "%s (%s)%s: %s | price=%.2f SMA%d=%.2f SMA%d=%.2f RSI%d=%.1f",
+            "%s (%s)%s: %s | price=%.2f SMA%d=%.2f SMA%d=%.2f RSI%d=%.1f MACD=%.3f/%.3f confluence=%d/%d",
             symbol,
             name,
             " [held]" if held else "",
@@ -44,6 +44,10 @@ def run() -> None:
             signal.sma_slow,
             STRATEGY.rsi_period,
             signal.rsi,
+            signal.macd,
+            signal.macd_signal,
+            signal.confluence,
+            signal.confluence_required,
         )
 
         if signal.action in ("BUY", "SELL"):
@@ -51,7 +55,8 @@ def run() -> None:
             actionable.append(
                 (
                     held,
-                    f"*{signal.action}* {symbol} ({name}) @ {signal.price:.2f} | RSI={signal.rsi:.1f}{held_tag}",
+                    f"*{signal.action}* {symbol} ({name}) @ {signal.price:.2f} | "
+                    f"RSI={signal.rsi:.1f} | confluence {signal.confluence}/{signal.confluence_required}{held_tag}",
                 )
             )
 

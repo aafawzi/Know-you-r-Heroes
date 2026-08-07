@@ -3,7 +3,21 @@ import pandas as pd
 from thndr_bot.backtest import backtest_ticker
 from thndr_bot.config import StrategyConfig
 
-_CFG = StrategyConfig(sma_fast=2, sma_slow=3, rsi_period=3, rsi_overbought=101, rsi_oversold=-1)
+_CFG = StrategyConfig(
+    sma_fast=2,
+    sma_slow=3,
+    rsi_period=3,
+    rsi_overbought=101,
+    rsi_oversold=-1,
+    macd_fast=1,
+    macd_slow=2,
+    macd_signal_period=1,
+    bb_period=2,
+    bb_std=2.0,
+    volume_avg_period=2,
+    volume_confirm_multiplier=1.0,
+    confluence_required=1,
+)
 
 
 def test_backtest_closes_trade_on_round_trip():

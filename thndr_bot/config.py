@@ -22,6 +22,18 @@ class StrategyConfig:
     rsi_oversold: float = 30.0
     history_period: str = "1y"
 
+    # Confluence filters layered on top of the SMA crossover to cut down on
+    # whipsaws: a crossover only fires a signal once at least
+    # `confluence_required` of {RSI, MACD, volume, Bollinger position} agree.
+    macd_fast: int = 12
+    macd_slow: int = 26
+    macd_signal_period: int = 9
+    bb_period: int = 20
+    bb_std: float = 2.0
+    volume_avg_period: int = 20
+    volume_confirm_multiplier: float = 1.2
+    confluence_required: int = 3
+
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")

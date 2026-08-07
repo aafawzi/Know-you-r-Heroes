@@ -79,7 +79,7 @@ class BacktestResult:
 def backtest_ticker(df: pd.DataFrame, symbol: str, cfg: StrategyConfig | None = None) -> BacktestResult:
     """Walk the strategy forward bar-by-bar (no lookahead) and simulate long-only trades."""
     cfg = cfg or STRATEGY
-    min_bars = cfg.sma_slow + 2
+    min_bars = max(cfg.sma_slow, cfg.macd_slow + cfg.macd_signal_period, cfg.bb_period, cfg.volume_avg_period) + 2
 
     trades: list[Trade] = []
     open_trade: Trade | None = None
