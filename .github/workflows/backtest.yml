@@ -7,6 +7,10 @@ on:
         description: "yfinance history period (e.g. 1y, 2y, 3y, 5y)"
         required: false
         default: "3y"
+      split:
+        description: "Optional in-sample fraction (e.g. 0.6) to run a walk-forward split instead of a single full-period backtest"
+        required: false
+        default: ""
 
 jobs:
   run-backtest:
@@ -22,4 +26,11 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run backtest
-        run: python backtest.py --period "${{ github.event.inputs.period || '3y' }}"
+        env:
+          SPLIT: ${{ github.event.inputs.split }}
+        run: |
+          if [ -n "$SPLIT" ]; then
+            python backtest.py --period "${{ github.event.inputs.period || '3y' }}" --split "$SPLIT"
+          else
+            python backtest.py --period "${{ github.event.inputs.period || '3y' }}"
+          fi
