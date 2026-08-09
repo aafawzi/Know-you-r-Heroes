@@ -15,10 +15,10 @@ Reproduce the VERIFIED rows with `scripts/probe_sources.py` (run via the
 ## 0. Executive summary — the five things that actually matter
 
 1. **The official EGX WebService is real, undocumented, and far better than
-   Yahoo for indices.** It returned **1,210 daily EGX30 closes back to
-   2021-08-11** and intraday ticks for the current session. This fixes the
-   market-regime engine, which is dead today because Yahoo refuses to serve
-   `^CASE30` history. **VERIFIED.**
+   Yahoo for indices.** It returned **2,422 daily EGX30 closes back to
+   2016-08-14 — ten years** — plus intraday ticks for the current session. This
+   fixes the market-regime engine, which is dead today because Yahoo refuses to
+   serve `^CASE30` history. **VERIFIED.**
 2. **There is an official `EGX_33_Shariah` index**, screened to AAOIFI-style
    rules by EGX's own Shariah board, and its history is available from the
    same endpoint. This should anchor the Sharia universe instead of the
@@ -69,28 +69,53 @@ over one undocumented ASP.NET endpoint.
 `GET /getIndexChartData?index={INDEX}&period={DAYS}&gtk=0` → JSON array of
 `{CDAY, INDEX_VALUE}`.
 
+Results pooled over two independent sweeps (a source this flaky cannot be
+characterised from one run):
+
 | Probe | Result | Status |
 |---|---|---|
 | `EGX30`, period=0 | 61 rows, `09:58 → 14:55` same day — **intraday** | VERIFIED |
-| `EGX30`, period=1825 | **1,210 rows, 2021-08-11 → 2026-08-06** | VERIFIED |
+| `EGX30`, period=1825 | 1,210 rows, 2021-08-11 → 2026-08-06 | VERIFIED |
+| `EGX30`, period=3650 | **2,422 rows, 2016-08-14 → 2026-08-06 (10 years)** | VERIFIED |
 | `EGX70_EWI`, period=365 | 242 rows | VERIFIED |
 | `EGX100_EWI`, period=365 | 242 rows | VERIFIED |
 | `EGX_33_Shariah`, period=365 | 242 rows | VERIFIED |
 | `EGX30_CAP`, period=365 | 242 rows | VERIFIED |
-| `EGXVolatility`, period=365 | Connection reset | FAILED (see reliability) |
-| `EGX30`, period=3650 | Connection reset | FAILED (see reliability) |
+| `EGXVolatility`, period=365 | 242 rows | VERIFIED |
 
-**Reliability caveat (important).** Failures are *not* deterministic by
-parameter: `period=365` failed on EGX30 in one sweep while `period=1825`
-succeeded seconds later. Successful calls return in ~1.5 s; failures hang
-~28 s and then `ConnectionResetError(104)`. That signature is throttling or a
-connection cap, not a bad request. **Any client must implement retry with
-backoff and a local cache**, and must never treat a single failure as "no
-data". Quantified retry behaviour: see the `Reliability` probe rows.
+Every supported index returned data. **Ten years of daily EGX30 closes is
+enough history for genuine regime work and multi-cycle walk-forward testing** —
+a large upgrade over the 3-year Yahoo-equity window used so far.
+
+**Reliability — quantified, and the most operationally important finding here.**
+Failures are *not* deterministic by parameter. The same call that fails once
+succeeds seconds later; `period=3650` and `EGXVolatility` both failed in sweep 1
+and succeeded in sweep 2. A dedicated 5× retry probe on one fixed call gave:
+
+```
+Reliability EGX30 p=365 x5 → 4/5 ok | ['30.6s/ERR', '1.3s/242r', '1.0s/242r', '1.3s/242r', '1.3s/242r']
+```
+
+So: **~20–25% transient failure rate, fully recovered by retry.** Successes
+return in ~1.0–1.3 s; failures burn a 30 s timeout or reset the connection.
+The whole `egx.com.eg` host behaves this way, not just this endpoint — the
+homepage failed in one sweep and returned HTTP 200 in the other.
+
+**Design consequences (non-optional):** retry with backoff, a generous timeout,
+a local cache of the last good pull, and a rule that a single failure is never
+interpreted as "no data" — that misreading is exactly what would make a regime
+engine silently flip to "unavailable" or, worse, to a wrong state.
 
 **What it does *not* give:** only `datetime` + `value`. No OHLC, no volume, no
 constituents, no per-stock data. Sufficient for regime and benchmark work;
 insufficient for anything needing index OHLC.
+
+**Wider API surface — unknown.** I tried to enumerate the `.asmx` operation
+list programmatically and the extraction returned nothing (the help page served
+21,985 bytes, so the page loaded; my link pattern simply didn't match its
+markup). **I therefore cannot say what else this service exposes** — there may
+be per-stock or disclosure endpoints, or there may not. Recorded as
+**NEEDS TESTING**, not as "no other operations exist".
 
 **Terms of service — unresolved.** This is an internal endpoint powering EGX's
 own charts, not a published API. There is no documented rate limit or licence.
@@ -127,9 +152,11 @@ upstream data gap, not a bug in this repo. **Replace with §2.1.**
 
 | Source | Result | Status |
 |---|---|---|
-| `egx.com.eg/en/homepage.aspx` | HTTP 200, 49 KB | VERIFIED |
-| `egx.com.eg` (bare host) | Connection reset — always use the `/en/` path | VERIFIED |
-| `WebService.asmx` help page | HTTP 200, 20.8 KB (lists all operations) | VERIFIED |
+| `egx.com.eg/en/homepage.aspx` | HTTP 200, 49 KB (sweep 1); timeout (sweep 2) | VERIFIED, flaky |
+| `egx.com.eg` (bare host) | Reset (sweep 1); HTTP 200, 50 KB (sweep 2) | VERIFIED, flaky |
+| `WebService.asmx` help page | HTTP 200, ~21 KB | VERIFIED |
+| **EGX 33 Shariah constituents page** | **HTTP 200, 83.9 KB** | VERIFIED reachable (parsing untested) |
+| EGX 30 constituents page | Connection reset | Flaky — retry |
 | Mubasher Egypt | HTTP 200, 415 KB | VERIFIED (reachable) |
 | Investing.com | **HTTP 403** — bot-blocked | VERIFIED (unusable without scraping defences) |
 | FRA (`fra.gov.eg`) | HTTP 200, 284 KB | VERIFIED (reachable) |
@@ -187,8 +214,9 @@ Anything unresolved → `UNKNOWN` → **no BUY signal**, per §7 of the brief.
 - The 33-name universe is small. That is a feature for risk, but it sharply
   limits how much signal research can be done without overfitting.
 
-**Constituent scraping is NEEDS TESTING** — a probe of
-`currentindexconstituntes.aspx?type=22` is queued.
+**Constituent page is reachable** — `currentindexconstituntes.aspx?type=22`
+returned **HTTP 200, 83.9 KB**. Extracting the 33 tickers from that HTML is the
+obvious Phase-3 task and is **NEEDS TESTING** (reachable ≠ parsed).
 
 ---
 
