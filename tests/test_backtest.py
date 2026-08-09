@@ -5,9 +5,11 @@ from thndr_bot.backtest import (
     backtest_ticker,
     hold_with_signal_exits,
     pooled_stats,
+    pooled_stats_net_of_costs,
     split_history,
 )
 from thndr_bot.config import StrategyConfig
+from thndr_bot.costs import round_trip_cost_pct
 
 _CFG = StrategyConfig(sma_fast=2, sma_slow=3, rsi_period=3, rsi_overbought=101, rsi_oversold=-1)
 
@@ -313,3 +315,100 @@ def test_pooled_stats_empty_when_no_closed_trades():
     stats = pooled_stats([result])
 
     assert stats == {"trades": 0, "win_rate": None, "avg_return": None}
+
+
+def _dated(closes: list[float], start: str = "2026-08-01") -> pd.DataFrame:
+    """A Close-only frame with a real DatetimeIndex, all after Law 153/2026.
+
+    thndr_bot.costs needs real dates to know whether stamp duty applies, so
+    the plain integer-indexed frames used elsewhere in this file can't
+    exercise the net-of-costs paths.
+    """
+    index = pd.date_range(start, periods=len(closes), freq="D")
+    return pd.DataFrame({"Close": closes}, index=index)
+
+
+def test_return_pct_net_of_costs_matches_the_fee_schedule_directly():
+    # Same round trip as test_backtest_closes_trade_on_round_trip, just dated.
+    closes = [10, 10, 10, 10, 20, 20, 20, 0]
+    result = backtest_ticker(_dated(closes), "TEST", cfg=_CFG)
+    trade = result.closed_trades[0]
+
+    notional = 20_000.0
+    exit_notional = notional * (trade.exit_price / trade.entry_price)
+    expected_cost_pct = round_trip_cost_pct(notional, exit_notional, trade.entry_date, trade.exit_date)
+
+    assert trade.return_pct_net_of_costs(notional) == pytest.approx(trade.return_pct - expected_cost_pct)
+
+
+def test_return_pct_net_of_costs_is_none_for_an_open_trade():
+    closes = [10, 10, 10, 10, 20]
+    result = backtest_ticker(_dated(closes), "TEST", cfg=_CFG)
+
+    assert result.trades[0].return_pct_net_of_costs(20_000.0) is None
+
+
+def test_result_net_of_cost_aggregates_are_none_with_no_closed_trades():
+    result = backtest_ticker(_dated([10.0] * 10), "TEST", cfg=_CFG)
+
+    assert result.total_return_pct_net_of_costs(20_000.0) is None
+    assert result.avg_return_pct_net_of_costs(20_000.0) is None
+    assert result.win_rate_pct_net_of_costs(20_000.0) is None
+
+
+def test_net_of_costs_return_is_always_lower_than_gross():
+    # buy@20, sell@45 -> +125% gross; costs only ever eat into that.
+    closes = [10, 10, 10, 10, 20, 60, 60, 45]
+    result = backtest_ticker(_dated(closes), "TEST", cfg=_CFG)
+    trade = result.closed_trades[0]
+
+    assert trade.return_pct == pytest.approx(125.0)
+    assert trade.return_pct_net_of_costs(20_000.0) < trade.return_pct
+    assert result.total_return_pct_net_of_costs(20_000.0) < result.total_return_pct
+    assert result.avg_return_pct_net_of_costs(20_000.0) < result.avg_return_pct
+
+
+def test_buy_and_hold_net_of_costs_matches_the_fee_schedule_directly():
+    closes = [10, 10, 10, 10, 20, 20, 20, 40]
+    result = backtest_ticker(_dated(closes), "TEST", cfg=_CFG)
+
+    notional = 20_000.0
+    exit_notional = notional * (result.buy_and_hold_exit_price / result.buy_and_hold_entry_price)
+    expected_cost_pct = round_trip_cost_pct(
+        notional, exit_notional, result.buy_and_hold_entry_date, result.buy_and_hold_exit_date
+    )
+
+    assert result.buy_and_hold_return_pct_net_of_costs(notional) == pytest.approx(
+        result.buy_and_hold_return_pct - expected_cost_pct
+    )
+
+
+def test_pooled_stats_net_of_costs_matches_pooling_each_trades_net_return():
+    df_a = _dated([10, 10, 10, 10, 20, 40, 40, 25])  # buy@20, sell@25 -> +25%
+    result_a = backtest_ticker(df_a, "A", cfg=_CFG)
+
+    df_b = _dated([10, 10, 10, 10, 20, 60, 60, 45])  # buy@20, sell@45 -> +125%
+    result_b = backtest_ticker(df_b, "B", cfg=_CFG)
+
+    notional = 20_000.0
+    stats = pooled_stats_net_of_costs([result_a, result_b], notional)
+
+    trade_a, trade_b = result_a.closed_trades[0], result_b.closed_trades[0]
+    expected_avg = (
+        trade_a.return_pct_net_of_costs(notional) + trade_b.return_pct_net_of_costs(notional)
+    ) / 2
+
+    assert stats["trades"] == 2
+    assert stats["win_rate"] == 100.0
+    assert stats["avg_return"] == pytest.approx(expected_avg)
+    assert stats["avg_return"] < pooled_stats([result_a, result_b])["avg_return"]
+
+
+def test_pooled_stats_net_of_costs_empty_when_no_closed_trades():
+    result = backtest_ticker(_dated([10.0] * 10), "TEST", cfg=_CFG)
+
+    assert pooled_stats_net_of_costs([result], 20_000.0) == {
+        "trades": 0,
+        "win_rate": None,
+        "avg_return": None,
+    }

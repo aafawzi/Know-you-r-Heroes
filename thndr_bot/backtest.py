@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from .config import STRATEGY, StrategyConfig
+from .costs import round_trip_cost_pct
 from .strategy import compute_signal
 
 
@@ -26,12 +27,36 @@ class Trade:
             return None
         return (self.exit_price - self.entry_price) / self.entry_price * 100
 
+    def return_pct_net_of_costs(self, notional_egp: float) -> float | None:
+        """Return %, minus the round-trip fee schedule (thndr_bot.costs), for a
+        position sized at notional_egp when this trade was entered.
+
+        Requires an explicit notional because the fixed per-order fee and
+        several rate caps only mean something at a real position size - see
+        docs/DISCOVERY.md §6. entry_date/exit_date must be real dates (not a
+        bare integer index) since stamp duty depends on which side of Law
+        153/2026 the trade falls on.
+        """
+        if self.exit_price is None:
+            return None
+        exit_notional_egp = notional_egp * (self.exit_price / self.entry_price)
+        cost_pct = round_trip_cost_pct(notional_egp, exit_notional_egp, self.entry_date, self.exit_date)
+        return self.return_pct - cost_pct
+
 
 @dataclass
 class BacktestResult:
     symbol: str
     trades: list[Trade]
     buy_and_hold_return_pct: float
+    # Populated by backtest_ticker() so buy-and-hold can be netted of costs
+    # the same way a strategy trade can - the Phase-6 gate (docs/DISCOVERY.md
+    # §14) compares the strategy to buy-and-hold net of costs, not gross vs
+    # gross, so the benchmark needs the same treatment as the trades.
+    buy_and_hold_entry_date: object | None = None
+    buy_and_hold_entry_price: float | None = None
+    buy_and_hold_exit_date: object | None = None
+    buy_and_hold_exit_price: float | None = None
 
     @property
     def closed_trades(self) -> list[Trade]:
@@ -76,6 +101,37 @@ class BacktestResult:
             max_dd = max(max_dd, (peak - equity) / peak * 100)
         return max_dd
 
+    def win_rate_pct_net_of_costs(self, notional_egp: float) -> float | None:
+        closed = self.closed_trades
+        if not closed:
+            return None
+        wins = sum(1 for t in closed if t.return_pct_net_of_costs(notional_egp) > 0)
+        return wins / len(closed) * 100
+
+    def avg_return_pct_net_of_costs(self, notional_egp: float) -> float | None:
+        closed = self.closed_trades
+        if not closed:
+            return None
+        return sum(t.return_pct_net_of_costs(notional_egp) for t in closed) / len(closed)
+
+    def total_return_pct_net_of_costs(self, notional_egp: float) -> float | None:
+        closed = self.closed_trades
+        if not closed:
+            return None
+        equity = 1.0
+        for t in closed:
+            equity *= 1 + t.return_pct_net_of_costs(notional_egp) / 100
+        return (equity - 1) * 100
+
+    def buy_and_hold_return_pct_net_of_costs(self, notional_egp: float) -> float | None:
+        if self.buy_and_hold_entry_date is None:
+            return None
+        exit_notional_egp = notional_egp * (self.buy_and_hold_exit_price / self.buy_and_hold_entry_price)
+        cost_pct = round_trip_cost_pct(
+            notional_egp, exit_notional_egp, self.buy_and_hold_entry_date, self.buy_and_hold_exit_date
+        )
+        return self.buy_and_hold_return_pct - cost_pct
+
 
 def split_history(df: pd.DataFrame, split_frac: float = 0.6) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Split a price history into an earlier in-sample slice and a later out-of-sample slice.
@@ -104,6 +160,25 @@ def pooled_stats(results: list[BacktestResult]) -> dict:
         "trades": len(all_closed),
         "win_rate": wins / len(all_closed) * 100,
         "avg_return": sum(t.return_pct for t in all_closed) / len(all_closed),
+    }
+
+
+def pooled_stats_net_of_costs(results: list[BacktestResult], notional_egp: float) -> dict:
+    """pooled_stats(), but every trade's return is netted of round-trip costs first.
+
+    Same pooling rationale as pooled_stats(): a ticker with one trade
+    shouldn't weigh the same as one with eight, so trades are pooled before
+    win rate / average return are computed, not averaged per-ticker first.
+    """
+    all_closed = [t for r in results for t in r.closed_trades]
+    if not all_closed:
+        return {"trades": 0, "win_rate": None, "avg_return": None}
+    net_returns = [t.return_pct_net_of_costs(notional_egp) for t in all_closed]
+    wins = sum(1 for r in net_returns if r > 0)
+    return {
+        "trades": len(all_closed),
+        "win_rate": wins / len(all_closed) * 100,
+        "avg_return": sum(net_returns) / len(net_returns),
     }
 
 
@@ -264,4 +339,12 @@ def backtest_ticker(
     last_close = float(df["Close"].iloc[-1])
     buy_and_hold_return_pct = (last_close - first_close) / first_close * 100
 
-    return BacktestResult(symbol=symbol, trades=trades, buy_and_hold_return_pct=buy_and_hold_return_pct)
+    return BacktestResult(
+        symbol=symbol,
+        trades=trades,
+        buy_and_hold_return_pct=buy_and_hold_return_pct,
+        buy_and_hold_entry_date=df.index[min_bars - 1],
+        buy_and_hold_entry_price=first_close,
+        buy_and_hold_exit_date=df.index[-1],
+        buy_and_hold_exit_price=last_close,
+    )

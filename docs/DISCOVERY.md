@@ -707,3 +707,52 @@ project. This does not change any decision already taken in §13-14: the
 zero-budget consequences recorded there already assumed Yahoo-only equity
 data, so nothing needs to be walked back — this session simply removed the
 possibility that a better free option existed and had been overlooked.
+
+---
+
+## 19. Build order approved (2026-08-09) — status of §14's four items
+
+The build order in §14 is approved as written. Status as of this session,
+so the next session doesn't have to re-derive it:
+
+| # | Item | Status |
+|---|---|---|
+| 1 | EGX index provider (retry + cache + quality status) | **Done** — `thndr_bot/providers/egx_index.py`, wired into `thndr_bot/runner.py`'s regime context (commit `b13af02`). |
+| 2 | Date-aware cost model | **Done this session** — see below. |
+| 3 | Sharia universe from official EGX 33 constituents, with snapshot dates | **Partially done.** `thndr_bot/sharia/screen.py` (commit `b7ff64c`) implements the full five-tier compliance logic and *accepts* `in_official_index`/`index_snapshot_date` as inputs, but nothing yet fetches the actual EGX 33 constituent list into those inputs. The constituents page (§2.4, §3) is reachable but unparsed, and §18 confirmed the WebService itself has no constituents endpoint — scraping `currentindexconstituntes.aspx?type=22` is still the only known path. **Remaining work, not started.** |
+| 4 | Run the gate: baseline vs buy-and-hold, net of costs, out-of-sample | **Not started** — now unblocked by item 2's primitives, but running it for real needs a live data pull, which only works from CI (§1). |
+
+**Item 2, done this session:** `thndr_bot/costs.py` implements the full
+per-side fee schedule from §6 (Thndr commission, FRA/EFSA, EGX fee, Non-
+Commercial Risk Fund, MCDR, stamp duty) with each component's own min/max
+cap, date-aware stamp duty (zero before Law 153/2026, 0.05%/side from
+29 Jul 2026), and a same-day round-trip discount. One ambiguity in the
+source table required an explicit interpretation, recorded as a comment in
+the code rather than silently assumed: "0.05% (0.025% same-day round
+trip)" is read as *the whole round trip* costing 0.025% of notional when
+both legs fall on the same day, not each leg being individually halved to
+0.025%. This is DOCUMENTED, not VERIFIED — flagged for anyone reconciling
+against a real contract note.
+
+Wired into `thndr_bot/backtest.py` as opt-in, not a replacement for the
+existing gross numbers (every pre-existing test in `tests/test_backtest.py`
+still passes unchanged, 21/21): `Trade.return_pct_net_of_costs(notional_egp)`,
+matching `BacktestResult` aggregates (`total_return_pct_net_of_costs`,
+`avg_return_pct_net_of_costs`, `win_rate_pct_net_of_costs`,
+`buy_and_hold_return_pct_net_of_costs`), and a pooled
+`pooled_stats_net_of_costs()`. The CLI (`backtest.py --notional EGP`) prints
+a second table net of costs for a given position size, including a
+per-ticker "beats buy-and-hold" column computed net-of-costs on *both*
+sides — the actual comparison the Phase-6 gate needs, not the strategy
+netted against a still-gross benchmark. 13 new tests in `tests/test_costs.py`
+plus 9 more in `tests/test_backtest.py` cover the fee schedule's caps, the
+law's effective-date boundary, and the wiring; 99/99 tests pass.
+
+**What item 2 does *not* do:** actually run the numbers against real EGX
+data. That requires a live Yahoo pull, which (§1) only works from CI. The
+next actionable step is triggering the **Backtest** workflow with
+`--notional` set to a realistic position size and reading what comes back —
+which is most of the way to item 4 (the gate) once item 3's Sharia
+universe gap is either filled or explicitly set aside, since the gate as
+specified doesn't strictly require the Sharia universe to be reproducible,
+only the cost model and the benchmark.

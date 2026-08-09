@@ -4,7 +4,13 @@ from dataclasses import replace
 
 import pandas as pd
 
-from thndr_bot.backtest import backtest_ticker, hold_with_signal_exits, pooled_stats, split_history
+from thndr_bot.backtest import (
+    backtest_ticker,
+    hold_with_signal_exits,
+    pooled_stats,
+    pooled_stats_net_of_costs,
+    split_history,
+)
 from thndr_bot.config import STRATEGY, load_watchlist
 from thndr_bot.data import fetch_history
 from thndr_bot.regime import regime_series
@@ -54,6 +60,50 @@ def _print_pooled(results: list, label: str) -> None:
     stats = pooled_stats(results)
     print(
         f"\nPooled {label}: {stats['trades']} closed trades across watchlist | "
+        f"win rate {_fmt(stats['win_rate'])}% | avg return/trade {_fmt(stats['avg_return'])}%"
+    )
+
+
+def _row_for_net(symbol: str, result, notional_egp: float) -> dict:
+    return {
+        "symbol": symbol,
+        "trades": len(result.closed_trades),
+        "win_rate": result.win_rate_pct_net_of_costs(notional_egp),
+        "avg_return": result.avg_return_pct_net_of_costs(notional_egp),
+        "total_return": result.total_return_pct_net_of_costs(notional_egp),
+        "buy_hold": result.buy_and_hold_return_pct_net_of_costs(notional_egp),
+    }
+
+
+def _print_net_table(rows: list[dict], notional_egp: float, label: str | None = None) -> None:
+    """The number the Phase-6 gate (docs/DISCOVERY.md §14) actually cares about:
+    does the strategy beat buy-and-hold once thndr_bot.costs's round-trip fee
+    schedule is subtracted from both sides, not just the strategy.
+    """
+    print(f"\n== {label or 'NET OF COSTS'} (notional EGP {notional_egp:,.0f}) ==")
+    header = (
+        f"{'Symbol':<8}{'Trades':>7}{'WinRate%':>10}{'AvgRet%':>10}"
+        f"{'TotalRet%':>12}{'BuyHold%':>10}  {'Beats B&H'}"
+    )
+    print(header)
+    print("-" * len(header))
+    for r in rows:
+        beats = (
+            "Y"
+            if r["total_return"] is not None and r["buy_hold"] is not None and r["total_return"] > r["buy_hold"]
+            else ""
+        )
+        print(
+            f"{r['symbol']:<8}{r['trades']:>7}{_fmt(r['win_rate']):>10}{_fmt(r['avg_return']):>10}"
+            f"{_fmt(r['total_return']):>12}{_fmt(r['buy_hold']):>10}  {beats}"
+        )
+
+
+def _print_pooled_net(results: list, notional_egp: float, label: str) -> None:
+    stats = pooled_stats_net_of_costs(results, notional_egp)
+    print(
+        f"\nPooled {label} net of costs (notional EGP {notional_egp:,.0f}): "
+        f"{stats['trades']} closed trades across watchlist | "
         f"win rate {_fmt(stats['win_rate'])}% | avg return/trade {_fmt(stats['avg_return'])}%"
     )
 
@@ -186,6 +236,7 @@ def main(
     split_frac: float | None = None,
     use_regime_filter: bool = False,
     use_trailing_stop: bool = False,
+    notional_egp: float | None = None,
 ) -> None:
     watchlist = load_watchlist()
 
@@ -216,6 +267,10 @@ def main(
             rows.append(_row_for(symbol, result))
         _print_table(rows)
         _print_pooled(results, f"({period})")
+        if notional_egp is not None:
+            net_rows = [_row_for_net(row["symbol"], res, notional_egp) for row, res in zip(rows, results)]
+            _print_net_table(net_rows, notional_egp, label=f"({period})")
+            _print_pooled_net(results, notional_egp, f"({period})")
         return
 
     in_rows, out_rows = [], []
@@ -252,6 +307,15 @@ def main(
     _print_table(out_rows, label=f"OUT-OF-SAMPLE (last {1 - split_frac:.0%} of {period})")
     _print_pooled(out_results, "out-of-sample")
 
+    if notional_egp is not None:
+        in_net_rows = [_row_for_net(r["symbol"], res, notional_egp) for r, res in zip(in_rows, in_results)]
+        _print_net_table(in_net_rows, notional_egp, label=f"IN-SAMPLE (first {split_frac:.0%} of {period})")
+        _print_pooled_net(in_results, notional_egp, "in-sample")
+
+        out_net_rows = [_row_for_net(r["symbol"], res, notional_egp) for r, res in zip(out_rows, out_results)]
+        _print_net_table(out_net_rows, notional_egp, label=f"OUT-OF-SAMPLE (last {1 - split_frac:.0%} of {period})")
+        _print_pooled_net(out_results, notional_egp, "out-of-sample")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -286,6 +350,15 @@ if __name__ == "__main__":
         action="store_true",
         help="Compare buy-and-hold vs the strategy vs hold-with-signal-exits, per ticker and pooled",
     )
+    parser.add_argument(
+        "--notional",
+        type=float,
+        default=None,
+        metavar="EGP",
+        help="Also print every result net of round-trip trading costs (thndr_bot.costs) for a position "
+        "of this size in EGP, including whether the strategy still beats buy-and-hold once both are "
+        "netted - the number the Phase-6 gate in docs/DISCOVERY.md cares about. e.g. --notional 20000",
+    )
     args = parser.parse_args()
     if args.vs_hold:
         compare_against_holding(args.period)
@@ -297,4 +370,5 @@ if __name__ == "__main__":
             split_frac=args.split,
             use_regime_filter=args.regime_filter,
             use_trailing_stop=args.trailing_stop,
+            notional_egp=args.notional,
         )

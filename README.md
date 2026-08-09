@@ -160,6 +160,27 @@ still accepts `use_stop_loss_exit=True` / `use_take_profit_exit=True` if you wan
 re-run that comparison yourself, and the ATR levels are always computed and shown
 in alerts even though nothing acts on them automatically.
 
+### Trading costs (opt-in, net of fees)
+
+Every number above is a *gross* price return — the backtest engine didn't
+know trading costs exist until `thndr_bot/costs.py` was added. Pass
+`--notional EGP` (e.g. `python backtest.py --notional 20000`) to also print
+every result net of the documented EGX + Thndr round-trip fee schedule
+(commission, FRA/EFSA, EGX fee, Non-Commercial Risk Fund, MCDR, and stamp
+duty) for a position of that size, including whether the strategy still
+beats buy-and-hold once *both* are netted of costs — buy-and-hold pays a
+round trip too, so it isn't left at its gross number for the comparison.
+
+Two things make this date-aware rather than a flat percentage: stamp duty
+was reinstated by Law 153/2026 (in force 29 Jul 2026) and did not apply
+before that date, and a same-day round trip is taxed at a discounted
+combined rate rather than the full per-side rate. See `docs/DISCOVERY.md`
+§6 and §18 for the sourcing and the specific interpretation choices made
+where the fee schedule's wording was ambiguous — it's DOCUMENTED from
+Thndr support and the EGX fee schedule, not independently verified against
+a real contract note, so treat it as directionally right rather than exact
+to the piaster.
+
 ### Trailing stop (tested, and still not enabled)
 
 `python backtest.py --trailing-stop` exits at a stop that sits
