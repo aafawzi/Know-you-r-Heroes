@@ -48,14 +48,18 @@ SUPPORTED_INDICES = frozenset(
     }
 )
 
-# The endpoint rejects anonymous-looking clients, so identify as a browser
-# with a referer. This is the same shape the exchange's own charts send.
+# Do not "improve" these headers. This exact pair is what the `egx` PyPI
+# package sends and what every successful probe used. Changing the Referer
+# to https://www.egx.com.eg/ - which looks more correct - produced 4/4
+# hard failures (RemoteDisconnected / ECONNRESET) against a source that
+# otherwise fails only ~1 call in 4. Treat this as a working incantation
+# for an undocumented endpoint, not as something to tidy.
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
     ),
-    "Referer": "https://www.egx.com.eg/",
+    "Referer": "https://www.google.com/",
 }
 
 
