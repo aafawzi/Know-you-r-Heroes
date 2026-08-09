@@ -110,8 +110,74 @@ def yahoo_chart(symbol: str, rng: str) -> None:
         line("FAILED", name, f"{type(exc).__name__}: {str(exc)[:110]}")
 
 
+def list_webservice_methods() -> None:
+    """Enumerate what the official EGX WebService actually exposes.
+
+    The .asmx help page lists every operation. Reading it beats guessing
+    endpoint names, and tells us whether stock-level data, constituents or
+    disclosures are reachable the same way index data is.
+    """
+    name = "EGX WebService method inventory"
+    try:
+        r = requests.get(EGX_WS, headers=UA, timeout=TIMEOUT)
+        r.raise_for_status()
+        import re
+
+        methods = sorted(set(re.findall(r'href="/WebService\.asmx\?op=([A-Za-z0-9_]+)"', r.text)))
+        line("VERIFIED", name, f"{len(methods)} operations")
+        for m in methods:
+            print(f"             - {m}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        line("FAILED", name, f"{type(exc).__name__}: {str(exc)[:110]}")
+
+
+def reliability_check(index: str, period: int, attempts: int = 5) -> None:
+    """Quantify the intermittent connection resets seen on this endpoint.
+
+    Successes returned in ~1.5s while failures hung ~28s before a reset,
+    which looks like throttling rather than a bad parameter. If that's
+    right, a retry with backoff makes the source usable; if the failures
+    are deterministic per-parameter, it doesn't.
+    """
+    name = f"Reliability {index} p={period} x{attempts}"
+    ok = 0
+    timings = []
+    import time as _t
+
+    for _ in range(attempts):
+        t0 = _t.monotonic()
+        try:
+            r = requests.get(
+                f"{EGX_WS}/getIndexChartData",
+                params={"index": index, "period": period, "gtk": 0},
+                headers=UA,
+                timeout=TIMEOUT,
+            )
+            rows = len(r.json()) if r.ok else 0
+            if rows:
+                ok += 1
+            timings.append(f"{_t.monotonic()-t0:.1f}s/{rows}r")
+        except Exception:  # noqa: BLE001
+            timings.append(f"{_t.monotonic()-t0:.1f}s/ERR")
+        _t.sleep(2)
+    line("VERIFIED" if ok else "FAILED", name, f"{ok}/{attempts} ok | {timings}")
+
+
 def main() -> None:
     print(f"EGX data-source probe @ {datetime.now(timezone.utc).isoformat()}\n")
+
+    print("--- 0. Official EGX WebService: what exists ---")
+    list_webservice_methods()
+    reliability_check("EGX30", 365)
+    head(
+        "https://www.egx.com.eg/en/currentindexconstituntes.aspx?type=22&nav=22",
+        "EGX 33 Shariah constituents page",
+    )
+    head(
+        "https://www.egx.com.eg/en/currentindexconstituntes.aspx?type=1&nav=1",
+        "EGX 30 constituents page",
+    )
+
 
     print("--- 1. Official EGX WebService (indices) ---")
     # period=0 is intraday-today; the long lookbacks are what a regime engine
