@@ -123,10 +123,17 @@ def list_webservice_methods() -> None:
         r.raise_for_status()
         import re
 
-        methods = sorted(set(re.findall(r'href="/WebService\.asmx\?op=([A-Za-z0-9_]+)"', r.text)))
-        line("VERIFIED", name, f"{len(methods)} operations")
+        # First attempt anchored on a leading slash and found nothing, which I
+        # wrongly recorded as "unknown" instead of retrying. Match the op
+        # parameter wherever it appears so the page's actual link style
+        # cannot hide the inventory again.
+        methods = sorted(set(re.findall(r"op=([A-Za-z0-9_]+)", r.text)))
+        line("VERIFIED", name, f"{len(methods)} operations in {len(r.text)} bytes")
         for m in methods:
             print(f"             - {m}", flush=True)
+        if not methods:
+            # Show what we actually got so the next attempt isn't blind.
+            print("             RAW SAMPLE:", r.text[:600].replace("\n", " ")[:600], flush=True)
     except Exception as exc:  # noqa: BLE001
         line("FAILED", name, f"{type(exc).__name__}: {str(exc)[:110]}")
 
@@ -168,6 +175,17 @@ def main() -> None:
 
     print("--- 0. Official EGX WebService: what exists ---")
     list_webservice_methods()
+    # A free, official per-stock feed would beat Yahoo outright, so test the
+    # plausible endpoint names rather than assuming indices are all there is.
+    for op in (
+        "getStockChartData",
+        "getCompanyChartData",
+        "getStockData",
+        "getSecurityChartData",
+        "getListedCompanies",
+        "getIndexConstituents",
+    ):
+        head(f"{EGX_WS}/{op}", f"EGX WebService probe /{op}")
     reliability_check("EGX30", 365)
     head(
         "https://www.egx.com.eg/en/currentindexconstituntes.aspx?type=22&nav=22",
