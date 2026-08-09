@@ -587,3 +587,56 @@ itself readable instead of guessed. Reading that page for
 `SearchSecurities_ENG` and `GetInvestorTables` is the next thing to run and
 read — it decides whether Yahoo can stop being the sole equity-OHLCV source,
 which is the biggest open gap left in §2.
+
+---
+
+## 17. `GetCompanyPricesList`'s contract read (run 31322533323) — not a price feed
+
+Ran the doc-fetch probe added in §16. Result is a genuine finding, and it
+closes the "per-stock endpoint" question in the opposite direction hoped for.
+
+**`GetCompanyPricesList` and `GetCompanyList` share an identical GET
+contract, and it is not a time series.** VERIFIED from the ASMX help page's
+own request/response templates:
+
+```
+GET /WebService.asmx/GetCompanyPricesList?prefixText=string&count=string
+→ 200 OK, ArrayOfString: <string>string</string><string>string</string>...
+```
+
+`GetCompanyList` and `SearchSecurities_ENG` returned **the same signature**,
+byte-for-byte (`prefixText`/`count` → `ArrayOfString`). That is the
+signature of an ASP.NET **AJAX AutoCompleteExtender** — a prefix-match
+typeahead for a search box, capped at `count` results, returning a flat list
+of strings. It is not shaped to hold OHLC, volume, or dated rows of
+anything. **This almost certainly rules out `GetCompanyPricesList` as a
+per-stock price history endpoint despite its name** — "Prices" here most
+plausibly labels a search box scoped to the prices page (e.g. autocomplete
+over ticker/company names as you type a symbol), not a price series
+attached to what you typed. Recorded as **VERIFIED (contract)**, and
+**NEEDS TESTING (semantics)** — the actual returned strings were not yet
+read when this section was written.
+
+**Fix committed alongside this section** (`scripts/probe_sources.py`):
+added `call_string_search()`, which calls each of the three operations with
+`prefixText="COM"`, `count="10"` and prints the actual returned strings —
+the only way to settle whether they hold ticker codes, company names, or a
+combined format, and whether `GetCompanyList` is at least useful for
+building the Sharia/equity universe (§3, §9) even though it is not a price
+source.
+
+**`getIndexData` and `GetInvestorTables` still unread** — both reset the
+connection this run, indistinguishable from the endpoint's known ~20-25%
+transient failure rate (§2.1). Not evidence of absence; re-run to get a
+verdict.
+
+**Where this leaves §2.1's "wider API surface" open item:** answered, but
+not the way hoped. The exchange's WebService is real and does expose more
+than index charts — but `GetCompanyPricesList` is the third confirmation
+(after `getIndexChartData` for indices, and now this for search) that the
+operations map cleanly onto **what the public EGX website's own pages need**
+(index charts, symbol search) rather than a general data API. **Working
+assumption going forward: Yahoo remains the only found source of per-stock
+OHLCV.** If `call_string_search`'s output shows tickers only, `GetCompanyList`
+may still be useful as a free, official symbol/name lookup independent of
+price data — worth keeping even if the price question is now closed.

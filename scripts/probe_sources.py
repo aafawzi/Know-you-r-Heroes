@@ -166,6 +166,35 @@ def show_operation_docs(op: str) -> None:
         line("FAILED", name, f"{type(exc).__name__}: {str(exc)[:110]}")
 
 
+def call_string_search(op: str, prefix_text: str, count: str) -> None:
+    """Call a prefixText/count ASMX operation and show what strings it actually returns.
+
+    show_operation_docs revealed GetCompanyPricesList, GetCompanyList and
+    SearchSecurities_ENG all share this exact GET signature and return
+    ArrayOfString - the shape of an autocomplete/typeahead box, not a time
+    series. That kills the hope of per-stock OHLCV from this operation, but
+    the actual returned strings (ticker codes? "CODE - Company Name"? just
+    names?) are still undetermined - call it and look, rather than assume.
+    """
+    name = f"EGX WebService {op} prefixText={prefix_text!r} count={count}"
+    try:
+        r = requests.get(
+            f"{EGX_WS}/{op}",
+            params={"prefixText": prefix_text, "count": count},
+            headers=UA,
+            timeout=TIMEOUT,
+        )
+        if not r.ok:
+            line("FAILED", name, f"HTTP {r.status_code}")
+            return
+        import re
+
+        items = re.findall(r"<string>(.*?)</string>", r.text)
+        line("VERIFIED", name, f"{len(items)} items | {items[:15]}")
+    except Exception as exc:  # noqa: BLE001
+        line("FAILED", name, f"{type(exc).__name__}: {str(exc)[:110]}")
+
+
 def reliability_check(index: str, period: int, attempts: int = 5) -> None:
     """Quantify the intermittent connection resets seen on this endpoint.
 
@@ -216,6 +245,12 @@ def main() -> None:
         "GetInvestorTables",
     ):
         show_operation_docs(op)
+    # All three prefixText/count operations returned an ArrayOfString GET
+    # contract - the shape of an autocomplete box, not a time series. Call
+    # them with a real prefix to see what content they actually hold before
+    # concluding they are useless for per-stock OHLCV.
+    for op in ("GetCompanyPricesList", "GetCompanyList", "SearchSecurities_ENG"):
+        call_string_search(op, "COM", "10")
     reliability_check("EGX30", 365)
     head(
         "https://www.egx.com.eg/en/currentindexconstituntes.aspx?type=22&nav=22",
