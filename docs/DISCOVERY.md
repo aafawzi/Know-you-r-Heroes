@@ -501,3 +501,32 @@ feature-complete system.
    dates recorded from day one (impossible to recover retrospectively).
 4. **Run the gate.** Baseline strategy vs buy-and-hold, net of costs,
    out-of-sample. Publish the answer whichever way it falls.
+
+---
+
+## 15. Probe re-run 2026-08-09 (third sweep)
+
+Re-confirmed, and worth recording because a flaky source needs repeated
+observation rather than a single reading:
+
+| Finding | Result |
+|---|---|
+| `EGX30` period=3650 | **2,423 rows, 2016-08-14 → 2026-08-09** — ten years, reproducible |
+| All seven indices at period=365 | 243 rows each, including `EGX_33_Shariah` |
+| Yahoo EGX equities @ 2y | 493 bars, full OHLCV, EGP |
+| Yahoo `^CASE30` @ 5d and 2y | still **1 bar** — permanently unusable for history |
+| `GOUR.CA`, `BONY.CA` | still HTTP 404 |
+| Investing.com | still HTTP 403 (bot-blocked) |
+
+**Flakiness reconfirmed, and it moves around.** This sweep `period=0` and
+`period=1825` failed while `365` and `3650` succeeded — the opposite pattern to
+sweep 2. Both egx.com.eg homepages failed here having succeeded before. This is
+the third independent confirmation that failures are transient and unrelated to
+the request, and it is why the provider retries rather than trusting one call.
+
+**Not yet answered:** the `.asmx` operation inventory and the six speculative
+per-stock endpoint probes ran, but I did not read that section of the log this
+session. So **"can the exchange serve per-stock prices?" remains open** — the
+data to answer it is sitting in run 31319670642's log. That question decides
+whether Yahoo can stop being the sole equity source, so it should be the first
+thing picked up next.
