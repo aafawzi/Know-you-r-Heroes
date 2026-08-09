@@ -27,6 +27,10 @@ on:
         description: "Set to 'true' to compare buy-and-hold vs strategy vs hold-with-signal-exits (overrides other modes)"
         required: false
         default: "false"
+      notional:
+        description: "Position size in EGP - also prints every result net of round-trip trading costs (thndr_bot.costs), including whether the strategy still beats buy-and-hold once both are netted. e.g. 20000"
+        required: false
+        default: ""
 
 jobs:
   run-backtest:
@@ -52,6 +56,7 @@ jobs:
           TRAILING_STOP: ${{ github.event.inputs.trailing_stop }}
           TRAIL_SWEEP: ${{ github.event.inputs.trail_sweep }}
           VS_HOLD: ${{ github.event.inputs.vs_hold }}
+          NOTIONAL: ${{ github.event.inputs.notional }}
         run: |
           ARGS="--period ${{ github.event.inputs.period || '3y' }}"
           if [ "$VS_HOLD" = "true" ]; then
@@ -70,5 +75,8 @@ jobs:
           fi
           if [ "$TRAILING_STOP" = "true" ]; then
             ARGS="$ARGS --trailing-stop"
+          fi
+          if [ -n "$NOTIONAL" ]; then
+            ARGS="$ARGS --notional $NOTIONAL"
           fi
           python backtest.py $ARGS
