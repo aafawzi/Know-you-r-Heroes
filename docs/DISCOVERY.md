@@ -530,3 +530,60 @@ session. So **"can the exchange serve per-stock prices?" remains open** — the
 data to answer it is sitting in run 31319670642's log. That question decides
 whether Yahoo can stop being the sole equity source, so it should be the first
 thing picked up next.
+
+---
+
+## 16. Operation inventory read (run 31319670642) — a real per-stock candidate exists
+
+Read the log that §15 left open. Two findings.
+
+**The inventory is real and larger than the index-only surface used so far —
+29 operations, not the handful `getIndexChartData` implies.** VERIFIED:
+
+```
+GetBondsList, GetBondsList_ar, GetCompanyList, GetCompanyList_ar,
+GetCompanyPricesList, GetCompanyPricesList_ar, GetCompletionList,
+GetGoldCompaniesData, GetGoldPrice, GetGoldPricesCompanies,
+GetInvestorTables, GetSilverCompaniesData, GetSilverPricesCompanies,
+IndivByNatStackChart, InvPieCharts, InvestorIndivInstColumnChart,
+InvestorNatColumnChart, MemberFirmHistoricalKendoChart, SearchSecurities,
+SearchSecurities_ENG, getGoldPriceData, getGoldPriceDataCompany,
+getIndexChartDDLData, getIndexChartDDLData_ar, getIndexChartData,
+getIndexData, getSilverPriceDataCompany, wishListSearch_ARB,
+wishListSearch_ENG
+```
+
+**The six endpoint names I guessed last session do not exist.** All six
+failed — two reset the connection (`getStockChartData`, `getCompanyChartData`
+— indistinguishable from throttling, *not* evidence the operation is absent),
+four returned `HTTP 500` with a short plain-text body
+(`getStockData`, `getSecurityChartData`, `getListedCompanies`,
+`getIndexConstituents` — an ASP.NET "no such handler" response, which *is*
+evidence of absence). **VERIFIED absent:** the guesses were wrong operation
+names, not a working endpoint being throttled.
+
+**But `GetCompanyPricesList` is real and is the obvious per-stock candidate**
+— named analogously to `getIndexChartData`, plural "Prices" strongly implies
+a time series, and it exists in the inventory (unlike every name I guessed).
+`GetCompanyList` likewise looks like the listed-companies/constituents
+operation the guessed `getListedCompanies` was reaching for. Neither has been
+called yet — existing in the inventory only proves the operation is real, not
+its parameter shape or whether it returns OHLC, close-only, or something else
+entirely. **NEEDS TESTING**, not assumed.
+
+**Also confirmed in this log:** the reliability pattern holds under load —
+3/5 on the fixed reliability check, with failures again costing ~28s before
+resetting rather than failing fast — and the EGX 33 Shariah and EGX 30
+constituent pages both returned successfully in the same run that saw the
+homepage reset twice. Consistent with §2.1/§2.4: this is host-wide flakiness,
+not a per-endpoint one.
+
+**Next probe added** (`scripts/probe_sources.py`, not yet run): rather than
+guess `GetCompanyPricesList`'s parameters, fetch its own ASMX help page —
+ASP.NET renders one per operation showing the exact GET/POST/SOAP request
+shape in `<pre>` blocks, the same technique that made the operation list
+itself readable instead of guessed. Reading that page for
+`GetCompanyPricesList`, `GetCompanyList`, `getIndexData`,
+`SearchSecurities_ENG` and `GetInvestorTables` is the next thing to run and
+read — it decides whether Yahoo can stop being the sole equity-OHLCV source,
+which is the biggest open gap left in §2.

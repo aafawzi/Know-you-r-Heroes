@@ -138,6 +138,34 @@ def list_webservice_methods() -> None:
         line("FAILED", name, f"{type(exc).__name__}: {str(exc)[:110]}")
 
 
+def show_operation_docs(op: str) -> None:
+    """Read the ASMX help page for one real operation instead of guessing its params.
+
+    The sweep that enumerated 29 real operation names (list_webservice_methods)
+    also showed that guessing endpoint names is a dead end: getStockChartData,
+    getSecurityChartData etc. all 500'd or reset because none of them exist.
+    GetCompanyPricesList does exist and is the obvious per-stock candidate, so
+    read its own help page - ASP.NET renders one per operation with <pre>
+    blocks showing the exact GET/POST/SOAP request shape, which beats guessing
+    parameter names the same way listing operations beat guessing endpoints.
+    """
+    import re
+
+    name = f"EGX WebService docs for {op}"
+    try:
+        r = requests.get(EGX_WS, params={"op": op}, headers=UA, timeout=TIMEOUT)
+        r.raise_for_status()
+        pres = re.findall(r"<pre>(.*?)</pre>", r.text, re.S)
+        line("VERIFIED", name, f"{len(pres)} <pre> blocks in {len(r.text)} bytes")
+        for i, p in enumerate(pres):
+            clean = re.sub(r"<[^>]+>", "", p)
+            clean = clean.replace("&gt;", ">").replace("&lt;", "<").replace("&amp;", "&")
+            clean = " ".join(clean.split())
+            print(f"             [{i}] {clean[:400]}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        line("FAILED", name, f"{type(exc).__name__}: {str(exc)[:110]}")
+
+
 def reliability_check(index: str, period: int, attempts: int = 5) -> None:
     """Quantify the intermittent connection resets seen on this endpoint.
 
@@ -175,17 +203,19 @@ def main() -> None:
 
     print("--- 0. Official EGX WebService: what exists ---")
     list_webservice_methods()
-    # A free, official per-stock feed would beat Yahoo outright, so test the
-    # plausible endpoint names rather than assuming indices are all there is.
+    # Sweep 3 (run 31319670642) confirmed the previous guessed endpoint names
+    # (getStockChartData etc.) do not exist - all six 500'd or reset. The real
+    # inventory names a genuine per-stock candidate, GetCompanyPricesList, plus
+    # a listed-companies operation and a security search. Read their help pages
+    # for the real parameter contract rather than guessing again.
     for op in (
-        "getStockChartData",
-        "getCompanyChartData",
-        "getStockData",
-        "getSecurityChartData",
-        "getListedCompanies",
-        "getIndexConstituents",
+        "GetCompanyPricesList",
+        "GetCompanyList",
+        "getIndexData",
+        "SearchSecurities_ENG",
+        "GetInvestorTables",
     ):
-        head(f"{EGX_WS}/{op}", f"EGX WebService probe /{op}")
+        show_operation_docs(op)
     reliability_check("EGX30", 365)
     head(
         "https://www.egx.com.eg/en/currentindexconstituntes.aspx?type=22&nav=22",
