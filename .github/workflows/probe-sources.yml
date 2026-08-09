@@ -1,0 +1,25 @@
+name: Probe Data Sources
+
+# Verification harness for the discovery phase. The dev container's egress
+# proxy only allows GitHub/PyPI/npm, so every external data source must be
+# tested from here instead.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests pandas
+
+      - name: Probe candidate EGX data sources
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python scripts/probe_sources.py
