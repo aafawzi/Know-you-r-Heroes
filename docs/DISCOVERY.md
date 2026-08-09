@@ -756,3 +756,70 @@ which is most of the way to item 4 (the gate) once item 3's Sharia
 universe gap is either filled or explicitly set aside, since the gate as
 specified doesn't strictly require the Sharia universe to be reproducible,
 only the cost model and the benchmark.
+
+---
+
+## 20. The gate has been run (2026-08-09) — the baseline fails it
+
+Triggered the **Backtest** workflow (run `31335487721`, after adding the
+`notional` input it was missing) with `--period 3y --split 0.6 --notional
+20000` — full 3-year history, 60/40 in-sample/out-of-sample split, EGP
+20,000 position size. This is the Phase-6 gate from §13 run for real, not a
+projection: *does the baseline strategy beat buy-and-hold, net of costs,
+out-of-sample?* **VERIFIED, and the answer is no.**
+
+**Pooled out-of-sample, net of costs:** 29 closed trades, win rate 31.0%,
+avg return/trade **+2.1%** (down from +2.4% gross — costs did their job,
+they just weren't the deciding factor here). Pooled in-sample net of costs:
+56 trades, 44.6% win rate, +6.3%/trade.
+
+**Per-ticker, the number that actually answers the gate:** of the 16
+out-of-sample tickers that had any closed trades, the strategy beat
+buy-and-hold **net of costs on exactly 1** — `SKPC`, and only because it
+lost less than a buy-and-hold that itself lost money (-15.0% vs -16.9%, not
+a real gain). Every other ticker lost to buy-and-hold, several by tens of
+percentage points on names that simply ran: `ETEL` +0.7% strategy vs +138.0%
+buy-and-hold, `CIRA` -6.6% vs +159.9%, `TMGH` +26.7% vs +78.8%, `RMDA`
++41.1% vs +45.4%. This is the same pattern already flagged qualitatively in
+§12 ("lost to holding on 12 of 13 held positions") and in the Executive
+Summary — now confirmed with the actual cost-adjusted, out-of-sample gate
+the project committed to.
+
+**Per §13, this is binding, not informational:** *"A strategy must beat
+buy-and-hold, net of costs, out-of-sample or the project stops rather than
+proceeds to the intelligence layer."* The gate has been run and the
+baseline crossover strategy does not clear it. **Sections 15-30 of the
+original brief (news/social intelligence, rumour detection, the Arabic NLP
+pipeline) should not proceed** on the strength of this result — that was
+always the condition, not a suggestion.
+
+**What this does and doesn't settle:**
+- It settles the *baseline* crossover strategy, on this watchlist, on this
+  3-year window, at this position size. That is the strategy this repo has
+  actually built and the only one with real evidence behind it.
+- It does **not** settle the regime filter or trailing-stop variants —
+  those were compared against the baseline gross, in earlier sessions, and
+  lost or were mixed (README, §0 item 5). They have not been re-run net of
+  costs out-of-sample. Given the baseline itself misses by this much on
+  1/16 tickers, it would be surprising if either variant flipped the
+  result, but "surprising" is not "tested" — recorded as **NEEDS TESTING**
+  rather than assumed to fail too.
+- It does not change at a different position size. EGP 20,000 was a
+  reasonable retail default, not calibrated to find the friendliest number
+  — worth being explicit that no sweep across notional sizes was run to
+  check whether the fixed EGP 2/order component (the piece that penalises
+  *small* positions specifically) was doing more of the damage than the
+  percentage-rate components would at a larger size.
+
+**Recommendation:** treat this as the answer the discovery phase set out to
+get, honestly, rather than a setback to route around. The self-critique in
+§12 called this the most likely outcome before any data existed to say so;
+now there is data. The credible next moves are (a) accept the result and
+stop here, having correctly avoided sinking the intelligence layer's
+larger effort into a system with no demonstrated edge, or (b) spend a
+bounded amount of additional evidence-gathering — the regime-filter and
+trailing-stop variants net of costs out-of-sample, and possibly a notional
+sweep — before concluding, since those are cheap and already built. Either
+way, the intelligence layer (§5, §12) stays out of scope until something
+clears this bar; nothing in this session's result changes that threshold,
+it just applies it.
