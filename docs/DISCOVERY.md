@@ -640,3 +640,70 @@ assumption going forward: Yahoo remains the only found source of per-stock
 OHLCV.** If `call_string_search`'s output shows tickers only, `GetCompanyList`
 may still be useful as a free, official symbol/name lookup independent of
 price data — worth keeping even if the price question is now closed.
+
+---
+
+## 18. Per-stock question closed (run 31323166633) — no price feed found; one useful lookup instead
+
+Ran the actual `call_string_search` calls added in §17, and re-read the two
+operations that reset last time. This closes the "does the exchange serve
+per-stock prices?" question that has spanned §15–17.
+
+**`getIndexData` and `GetInvestorTables` contracts read — neither is a price
+feed.** VERIFIED from their help pages:
+
+```
+GET /WebService.asmx/getIndexData?index=string&gtk=string   → single value, empty-bodied example response
+GET /WebService.asmx/GetInvestorTables?Lang=string&SB=string → empty-bodied example response
+```
+
+`getIndexData` is shaped like a single-index-value getter — a companion to
+`getIndexChartData`'s history, probably the "current tick" the live chart
+polls (`gtk` appears in both). `GetInvestorTables` pairs with the
+`Investor*Chart` operations already in the inventory (§16) — investor
+composition (individual/institutional, local/foreign), not price data.
+Neither is relevant to the per-stock OHLCV question; not pursued further.
+
+**The three string-search calls all returned real content, and none of it
+is a price.** VERIFIED, `prefixText="COM"`, `count="10"`:
+
+| Operation | Returned | Shape |
+|---|---|---|
+| `GetCompanyPricesList` | 29 items | Company names only — `"Telecom Egypt"`, `"Orascom Development Egypt"`, `"Commercial International Bank-Egypt (CIB)"` |
+| `GetCompanyList` | 34 items | Company names only, same style, slightly broader set |
+| `SearchSecurities_ENG` | 35 items | **`"EGX_CODE- Company Name"`** — e.g. `"EGS48031C016- Telecom Egypt"`, `"EGS60121C018- Commercial International Bank-Egypt (CIB)"` |
+
+No dates, no numbers, no OHLC in any of the three. This settles it:
+`GetCompanyPricesList`'s name was misleading — "Prices" most plausibly
+labels the search box on the exchange's *prices page*, autocompleting a
+company name for a human to click, not a data feed. **Confirmed: none of
+the 29 catalogued EGX WebService operations return per-stock OHLCV.**
+
+**Anomaly, recorded rather than smoothed over:** `count="10"` was passed on
+every call and none of the three respected it — they returned 29, 34 and 35
+items for a 10-item request. Either the parameter isn't enforced, or passing
+it as a string query param (`count=10`) doesn't parse the way the ASMX
+reflection layer expects for what may be an `int` argument. **NEEDS
+TESTING** if this operation is used for anything; not investigated further
+here since it doesn't change the price-feed conclusion.
+
+**One genuine keeper: `SearchSecurities_ENG`.** It is the only one of the
+three that returns an official EGX security code alongside the company
+name — a real, free, authoritative code↔name mapping. That is not a price
+source, but it is potentially useful for §3/§9 (resolving official EGX
+identifiers for the Sharia/equity universe, cross-checking against Yahoo's
+`.CA` tickers, or building the `corporate_actions`/company reference table
+in §7) — worth a follow-up NEEDS TESTING pass specifically on whether it
+covers the full EGX30/EGX33 universe and how its code format maps to
+Yahoo's ticker convention. Not pursued in this session; recorded so it
+isn't lost.
+
+**Conclusion for §2 and the roadmap:** the "wider API surface" question
+opened in §2.1 and chased across three follow-up sessions is now closed.
+**The EGX WebService supplies index history and a company/security search —
+it does not supply per-stock OHLCV.** Yahoo remains, and is now confirmed
+to remain, the sole free source of per-stock equity price data for this
+project. This does not change any decision already taken in §13-14: the
+zero-budget consequences recorded there already assumed Yahoo-only equity
+data, so nothing needs to be walked back — this session simply removed the
+possibility that a better free option existed and had been overlooked.
