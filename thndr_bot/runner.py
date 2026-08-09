@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from .config import STRATEGY, load_watchlist
 from .data import fetch_history
 from .notifier import send_telegram_message
+from .providers import Quality, fetch_index
 from .regime import compute_regime
 from .strategy import compute_signal
 
@@ -72,26 +73,29 @@ def _market_regime_context() -> str:
     See backtest.py --regime-filter for whether gating on this actually
     helps before treating it as more than a "here's the backdrop" note.
     """
-    index_df = fetch_history(STRATEGY.regime_index_symbol, period=STRATEGY.regime_history_period)
-    if index_df is None:
-        return "unavailable"
-    logger.info(
-        "%s: fetched %d rows (need %d for the SMA), %s to %s",
+    result = fetch_index(
         STRATEGY.regime_index_symbol,
-        len(index_df),
-        STRATEGY.regime_sma_period,
-        index_df.index[0].date() if len(index_df) else "n/a",
-        index_df.index[-1].date() if len(index_df) else "n/a",
+        period_days=STRATEGY.regime_history_days,
     )
-    regime = compute_regime(index_df, sma_period=STRATEGY.regime_sma_period)
-    if regime is not None:
-        return regime
-    if len(index_df) <= 5:
-        # Yahoo Finance currently caps ^CASE30's available range at 1d/5d
-        # regardless of the period requested - a data-coverage gap on
-        # their end, not a transient fetch issue. See README.
-        return "unavailable (Yahoo Finance isn't serving deep history for ^CASE30 right now)"
-    return "not enough history yet"
+    if not result.usable:
+        return f"unavailable ({result.quality.value.lower()})"
+
+    logger.info(
+        "%s: %d rows [%s], %s to %s",
+        STRATEGY.regime_index_symbol,
+        len(result.frame),
+        result.quality.value,
+        result.frame.index[0].date(),
+        result.frame.index[-1].date(),
+    )
+
+    regime = compute_regime(result.frame, sma_period=STRATEGY.regime_sma_period)
+    if regime is None:
+        return "not enough history yet"
+
+    # Say so when the number is from cache rather than a live pull - a
+    # regime read is only as current as the data behind it.
+    return f"{regime} (stale data)" if result.quality is Quality.STALE else regime
 
 
 def run() -> None:

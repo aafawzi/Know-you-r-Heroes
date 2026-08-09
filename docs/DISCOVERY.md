@@ -458,13 +458,46 @@ justified. If it doesn't, the rest would have been decoration on a losing bet.
 
 ---
 
-## 13. Open questions for you
+## 13. Decisions taken (2026-08-09)
 
-1. **Capital and horizon** — is EGP 1,000,000 the real paper-trading figure, and
-   is the goal to eventually trade this, or to decide whether trading is worth it?
-2. **Universe** — accept the official EGX 33 Shariah list as the tradeable
-   universe, or insist on independent screening (which needs paid fundamentals)?
-3. **Phase-6 gate** — do you accept "beat buy-and-hold net of costs
-   out-of-sample, or stop"? This is the single most important commitment here.
-4. **Budget** — is this a zero-cost project, or is ~$50–150/mo available for
-   verified data? It changes what's buildable.
+**1. The Phase-6 gate is accepted.** A strategy must **beat buy-and-hold, net
+of costs, out-of-sample** or the project stops rather than proceeds to the
+intelligence layer. This is now a binding condition, not an aspiration, and it
+determines the build order below: costs and a real benchmark come *before*
+anything that generates signals.
+
+**2. Budget is zero.** No paid data. The consequences are concrete and worth
+stating plainly rather than discovering later:
+
+| Consequence | Effect |
+|---|---|
+| No commercial provider (EODHD / Twelve Data / EGXAPI) | Cross-provider validation (brief §4) degrades to *internal* consistency checks against a cached history. Real provider-disagreement detection is not achievable. |
+| **No verified fundamentals source** | Brief §14 `FUNDAMENTAL_SCORE` is **cancelled**, not deferred. Building it on unverified data would break the brief's own rule against fabricating financial data. |
+| No fundamentals ⇒ no ratio screen | **Independent AAOIFI screening is cancelled.** The official EGX 33 Shariah index becomes the *sole* compliance source, not a primary-with-cross-check. |
+| No paid social APIs | X/Twitter is out. Any future social work is limited to genuinely public, ToS-compliant surfaces. |
+
+**The Sharia consequence deserves emphasis.** With one source and no
+independent verification, the system's compliance guarantee is exactly "EGX's
+Shariah board says so, as of the last snapshot we took." That is a *reasonable*
+guarantee — it is an accountable, qualified body — but it is single-sourced,
+point-in-time, and cannot be reconstructed historically. The system must state
+this to the user rather than implying it has performed its own screen. Every
+signal should carry the snapshot date its compliance claim rests on.
+
+**Deferred, not cancelled:** liquidity scoring, regime, relative strength and
+paper trading all work on free data and stay in scope.
+
+## 14. Immediate build order (Phase 2 onward)
+
+Driven by the gate: the shortest path to a *trustworthy verdict*, not to a
+feature-complete system.
+
+1. **EGX index provider** — official endpoint, retry + cache + quality status.
+   Unlocks 10y of EGX30 and fixes the dead regime feature. *Also supplies the
+   benchmark the gate is measured against.*
+2. **Date-aware cost model** — pre/post 29 Jul 2026 regimes; re-price every
+   existing backtest conclusion.
+3. **Sharia universe** from the official EGX 33 constituents, with snapshot
+   dates recorded from day one (impossible to recover retrospectively).
+4. **Run the gate.** Baseline strategy vs buy-and-hold, net of costs,
+   out-of-sample. Publish the answer whichever way it falls.

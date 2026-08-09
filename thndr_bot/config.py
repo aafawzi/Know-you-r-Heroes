@@ -43,9 +43,16 @@ class StrategyConfig:
     # index's own SMA). Informational only by default - see
     # backtest.py --regime-filter for whether gating BUY signals on it
     # actually helps before relying on it as more than context.
-    regime_index_symbol: str = "^CASE30"
+    #
+    # Sourced from the exchange's own endpoint, not Yahoo: Yahoo serves
+    # exactly one bar for ^CASE30 regardless of the range requested, which
+    # is why this feature reported "unavailable" for so long. The EGX
+    # endpoint returned 2,422 daily closes back to 2016 when probed.
+    regime_index_symbol: str = "EGX30"
     regime_sma_period: int = 200
-    regime_history_period: str = "2y"
+    # Calendar days, not trading days: ~2 years of lookback comfortably
+    # covers a 200-day SMA even with holidays and suspensions.
+    regime_history_days: int = 730
 
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")

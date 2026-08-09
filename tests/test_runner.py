@@ -69,3 +69,35 @@ def test_portfolio_line_shows_absolute_pnl_with_quantity():
     assert "+120.00 EGP" in line
     assert "10 shares" in line
     assert pnl_abs == 120.0
+
+
+def test_regime_context_flags_stale_data(monkeypatch):
+    # A regime read is only as current as the data behind it. If the source
+    # was down and we fell back to cache, the message must say so rather
+    # than presenting a cached read as today's market state.
+    import pandas as pd
+
+    from thndr_bot import runner
+    from thndr_bot.providers.egx_index import IndexData, Quality
+
+    frame = pd.DataFrame(
+        {"Close": [100.0, 110.0, 120.0]},
+        index=pd.to_datetime(["2026-08-04", "2026-08-05", "2026-08-06"]),
+    )
+    monkeypatch.setattr(
+        runner, "fetch_index", lambda *a, **k: IndexData("EGX30", frame, Quality.STALE)
+    )
+    monkeypatch.setattr(runner, "compute_regime", lambda *a, **k: "bullish")
+
+    assert runner._market_regime_context() == "bullish (stale data)"
+
+
+def test_regime_context_reports_unavailable_rather_than_guessing(monkeypatch):
+    from thndr_bot import runner
+    from thndr_bot.providers.egx_index import IndexData, Quality
+
+    monkeypatch.setattr(
+        runner, "fetch_index", lambda *a, **k: IndexData("EGX30", None, Quality.INVALID)
+    )
+
+    assert runner._market_regime_context() == "unavailable (invalid)"
